@@ -1,0 +1,12 @@
+node_modules
+data
+files
+dist
+.git
+.env
+*.log
+tests
+coverage
+.DS_Store
+tmp
+/tmp
