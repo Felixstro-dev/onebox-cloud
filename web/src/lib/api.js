@@ -54,7 +54,8 @@ export function patchUpload(id, offset, chunk, { onProgress, onXhr } = {}) {
     xhr.open('PATCH', `/api/v1/uploads/${id}`);
     xhr.withCredentials = true;
     xhr.setRequestHeader('x-onebox-csrf', '1');
-    xhr.setRequestHeader('content-type', 'application/octet-stream');
+    xhr.setRequestHeader('content-type', 'application/offset+octet-stream');
+    xhr.setRequestHeader('Tus-Resumable', '1.0.0');
     xhr.setRequestHeader('upload-offset', String(offset));
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress?.(event.loaded);
@@ -79,8 +80,8 @@ export function patchUpload(id, offset, chunk, { onProgress, onXhr } = {}) {
   });
 }
 
-export function completeUpload(id) {
-  return post(`/api/v1/uploads/${id}/complete`, {});
+export function completeUpload(id, { conflict = 'keepBoth' } = {}) {
+  return post(`/api/v1/uploads/${id}/complete`, { conflict });
 }
 
 export function cancelUpload(id) {

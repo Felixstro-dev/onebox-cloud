@@ -3,10 +3,40 @@ import { and, eq } from 'drizzle-orm';
 import { db, schema } from '../db/index.js';
 import { requireUser } from '../services/auth.js';
 import { badRequest, conflict, notFound, tooLarge } from '../lib/errors.js';
-import { createFile, getNode, activity } from '../services/nodes.js';
-import { prepareUpload, tempPath, writeChunk, fileSize } from '../services/storage.js';
+import { createFile, getNode, activity, assertQuota, findChildByName, toClient, trashRows } from '../services/nodes.js';
+import { prepareUpload, tempPath, writeChunk } from '../services/storage.js';
 import { mimeOf, cleanName } from '../lib/names.js';
-import { id } from '../lib/ids.js';
+import { thumbnails } from '../services/runtime.js';
+import { config } from '../config.js';
+
+const TUS_VERSION = '1.0.0';
+const TUS_EXTENSIONS = 'creation,termination';
+
+function tusHeaders(reply) {
+  reply.header('Tus-Resumable', TUS_VERSION);
+  reply.header('Tus-Version', TUS_VERSION);
+  reply.header('Tus-Extension', TUS_EXTENSIONS);
+  if (config.maxUploadBytes > 0) reply.header('Tus-Max-Size', config.maxUploadBytes);
+}
+
+function parseMetadata(header) {
+  if (!header) return {};
+  const result = {};
+  for (const pair of String(header).split(',')) {
+    const [key, encoded] = pair.split(' ');
+    if (!key) continue;
+    try {
+      result[key] = encoded ? Buffer.from(encoded, 'base64').toString('utf8') : '';
+    } catch {
+      result[key] = '';
+    }
+  }
+  return result;
+}
+
+function uploadLocation(id) {
+  return `${config.baseUrl}/api/v1/uploads/${id}`;
+}
 
 function uploadResponse(row) {
   return {
@@ -26,46 +56,84 @@ export async function registerUploadRoutes(app) {
     }
   });
 
+  app.options('/api/v1/uploads', async (req, reply) => {
+    tusHeaders(reply);
+    reply.header('Allow', 'POST, OPTIONS');
+    return reply.status(204).send();
+  });
+
+  app.options('/api/v1/uploads/:id', async (req, reply) => {
+    tusHeaders(reply);
+    reply.header('Allow', 'HEAD, PATCH, DELETE, OPTIONS');
+    return reply.status(204).send();
+  });
+
   app.post('/api/v1/uploads', {
     schema: {
       body: {
-        type: 'object', required: ['name', 'size'],
+        type: ['object', 'null'],
         properties: {
           name: { type: 'string', minLength: 1, maxLength: 255 },
           size: { type: 'integer', minimum: 0 },
           mime: { type: 'string', maxLength: 200 },
           parentId: { type: ['string', 'null'] },
           sessionId: { type: 'string', maxLength: 64 },
+          conflict: { type: 'string', enum: ['keepBoth', 'replace', 'skip'] },
         },
       },
     },
-  }, async (req) => {
+  }, async (req, reply) => {
     const user = requireUser(req);
-    if (req.body.parentId) getNode(req.body.parentId, user.id);
-    if (req.body.sessionId) {
-      const existing = db.select().from(schema.uploadSessions).where(and(eq(schema.uploadSessions.id, req.body.sessionId), eq(schema.uploadSessions.userId, user.id))).get();
-      if (existing) return { upload: uploadResponse(existing), resumed: true };
+    tusHeaders(reply);
+    const meta = parseMetadata(req.headers['upload-metadata']);
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const name = cleanName(body.name || meta.filename || 'Upload');
+    const size = Number(body.size ?? req.headers['upload-length'] ?? -1);
+    if (!Number.isFinite(size) || size < 0) throw badRequest('Upload-Length is missing.');
+    if (config.maxUploadBytes > 0 && size > config.maxUploadBytes) throw tooLarge('This file exceeds the configured upload limit.');
+    const parentId = body.parentId || meta.parentId || null;
+    if (parentId) getNode(parentId, user.id);
+    assertQuota(user, size);
+    if (body.sessionId) {
+      const existing = db.select().from(schema.uploadSessions).where(and(eq(schema.uploadSessions.id, body.sessionId), eq(schema.uploadSessions.userId, user.id))).get();
+      if (existing) {
+        reply.header('Location', uploadLocation(existing.id));
+        reply.header('Upload-Offset', existing.offset);
+        reply.header('Upload-Length', existing.size);
+        return { upload: uploadResponse(existing), resumed: true };
+      }
     }
-    const { sessionId } = await prepareUpload(req.body.size);
-    const name = cleanName(req.body.name, 'Upload');
+    const { sessionId } = await prepareUpload(size);
+    const mime = body.mime || meta.filetype || mimeOf(name);
     const row = {
       id: sessionId,
       userId: user.id,
-      parentId: req.body.parentId || null,
+      parentId,
       name,
-      size: req.body.size,
-      mime: req.body.mime || mimeOf(name),
+      size,
+      mime,
       offset: 0,
       tempKey: tempPath(sessionId),
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
     db.insert(schema.uploadSessions).values(row).run();
-    return { upload: uploadResponse(row), resumed: false };
+    const existing = findChildByName(user.id, parentId, name);
+    reply.header('Location', uploadLocation(sessionId));
+    reply.header('Upload-Offset', 0);
+    reply.header('Upload-Length', size);
+    reply.status(201);
+    return {
+      upload: uploadResponse(row),
+      resumed: false,
+      conflict: Boolean(existing && !body.conflict),
+      existing: existing ? toClient(existing) : null,
+    };
   });
 
   app.head('/api/v1/uploads/:id', async (req, reply) => {
     const user = requireUser(req);
+    tusHeaders(reply);
     const row = db.select().from(schema.uploadSessions).where(and(eq(schema.uploadSessions.id, req.params.id), eq(schema.uploadSessions.userId, user.id))).get();
     if (!row) throw notFound('Upload not found.');
     reply.header('Upload-Offset', row.offset);
@@ -83,6 +151,7 @@ export async function registerUploadRoutes(app) {
 
   app.patch('/api/v1/uploads/:id', async (req, reply) => {
     const user = requireUser(req);
+    tusHeaders(reply);
     const row = db.select().from(schema.uploadSessions).where(and(eq(schema.uploadSessions.id, req.params.id), eq(schema.uploadSessions.userId, user.id))).get();
     if (!row) throw notFound('Upload not found.');
     const offset = Number(req.headers['upload-offset']);
@@ -98,24 +167,48 @@ export async function registerUploadRoutes(app) {
     return reply.send({ offset: next });
   });
 
-  app.post('/api/v1/uploads/:id/complete', async (req) => {
+  app.post('/api/v1/uploads/:id/complete', {
+    schema: {
+      body: {
+        type: ['object', 'null'],
+        properties: { conflict: { type: 'string', enum: ['keepBoth', 'replace', 'skip'] } },
+      },
+    },
+  }, async (req) => {
     const user = requireUser(req);
     const row = db.select().from(schema.uploadSessions).where(and(eq(schema.uploadSessions.id, req.params.id), eq(schema.uploadSessions.userId, user.id))).get();
     if (!row) throw notFound('Upload not found.');
     const size = row.offset;
     if (size !== row.size) throw badRequest(`Upload is incomplete (${size} of ${row.size} bytes).`);
+    const conflictMode = req.body?.conflict || 'keepBoth';
+    const existing = findChildByName(user.id, row.parentId, row.name);
+    if (existing && conflictMode === 'skip') {
+      db.delete(schema.uploadSessions).where(eq(schema.uploadSessions.id, row.id)).run();
+      await fsp.unlink(row.tempKey).catch(() => {});
+      return { node: toClient(existing), skipped: true };
+    }
+    if (existing && conflictMode === 'replace') {
+      trashRows(user.id, [existing]);
+    }
     const node = await createFile({ user, parentId: row.parentId, name: row.name, mime: row.mime, tempFile: row.tempKey });
     db.delete(schema.uploadSessions).where(eq(schema.uploadSessions.id, row.id)).run();
     activity(user.id, 'file.upload', 'node', node.id, `${node.name} (${size} bytes)`, req.ip);
-    return { node };
+    // Thumbnails und Metadaten laufen in der Hintergrund-Queue, nicht im Request.
+    if (node.isImage) {
+      const stored = db.select({ hash: schema.nodes.hash }).from(schema.nodes).where(eq(schema.nodes.id, node.id)).get();
+      if (stored?.hash) thumbnails.generateAll({ id: node.id, hash: stored.hash, mime: node.mime, width: node.width }).catch(() => {});
+    }
+    return { node, skipped: false };
   });
 
-  app.delete('/api/v1/uploads/:id', async (req) => {
+  app.delete('/api/v1/uploads/:id', async (req, reply) => {
     const user = requireUser(req);
+    tusHeaders(reply);
     const row = db.select().from(schema.uploadSessions).where(and(eq(schema.uploadSessions.id, req.params.id), eq(schema.uploadSessions.userId, user.id))).get();
     if (!row) throw notFound('Upload not found.');
     db.delete(schema.uploadSessions).where(eq(schema.uploadSessions.id, row.id)).run();
     await fsp.unlink(row.tempKey).catch(() => {});
-    return { ok: true };
+    reply.status(204);
+    return reply.send();
   });
 }

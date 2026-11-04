@@ -45,6 +45,7 @@
   let textEditOpen = false;
   let textEditNode = null;
   let uploadInput;
+  let folderUploadInput;
   let lastFolder;
   let lastRefresh = -1;
   let nextCursor = null;
@@ -609,6 +610,74 @@
     event.target.value = '';
   }
 
+  function chooseFolderUploads() { folderUploadInput?.click(); }
+
+  function onFolderUploads(event) {
+    const entries = [...(event.target.files || [])].map((file) => {
+      const parts = String(file.webkitRelativePath || file.name).split('/');
+      return { file, path: parts.slice(0, -1) };
+    });
+    event.target.value = '';
+    if (entries.length) uploadTree(entries);
+  }
+
+  /** Legt die Ordnerstruktur an und hängt die Dateien an der richtigen Stelle ein. */
+  async function uploadTree(entries) {
+    const folders = new Map([['', folderId || null]]);
+    let created = 0;
+    for (const entry of entries) {
+      let parentId = folderId || null;
+      let key = '';
+      for (const part of entry.path) {
+        const nextKey = key ? `${key}/${part}` : part;
+        if (!folders.has(nextKey)) {
+          try {
+            const result = await post('/api/v1/folders', { name: part, parentId: parentId || null });
+            folders.set(nextKey, result.node.id);
+            created += 1;
+          } catch {
+            folders.set(nextKey, parentId);
+          }
+        }
+        parentId = folders.get(nextKey);
+        key = nextKey;
+      }
+      addFiles([entry.file], parentId);
+    }
+    notify(`${entries.length} ${entries.length === 1 ? 'Datei' : 'Dateien'} in ${created ? `${created} ${created === 1 ? 'Ordner' : 'Ordner'}` : 'diesen Ordner'} einsortiert.`, 'success');
+    if (created) refresh();
+  }
+
+  async function readEntry(entry, pathParts, out) {
+    if (entry.isFile) {
+      const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+      out.push({ file, path: pathParts });
+      return;
+    }
+    if (!entry.isDirectory) return;
+    const reader = entry.createReader();
+    const children = await new Promise((resolve) => {
+      const all = [];
+      const read = () => reader.readEntries((rows) => {
+        if (!rows.length) return resolve(all);
+        all.push(...rows);
+        read();
+      }, () => resolve(all));
+      read();
+    });
+    for (const child of children) await readEntry(child, [...pathParts, entry.name], out);
+  }
+
+  async function entriesFromDrop(dataTransfer) {
+    const roots = [...(dataTransfer.items || [])]
+      .map((item) => item.webkitGetAsEntry?.())
+      .filter(Boolean);
+    if (!roots.length) return [...(dataTransfer.files || [])].map((file) => ({ file, path: [] }));
+    const out = [];
+    for (const root of roots) await readEntry(root, [], out);
+    return out;
+  }
+
   function onDragEnter(event) {
     if (!event.dataTransfer?.types?.includes('Files')) return;
     dragDepth += 1;
@@ -620,12 +689,16 @@
     if (!dragDepth) dragOver = false;
   }
 
-  function onDrop(event) {
+  async function onDrop(event) {
     event.preventDefault();
     dragDepth = 0;
     dragOver = false;
-    const files = [...(event.dataTransfer?.files || [])];
-    if (files.length) addFiles(files, folderId);
+    if (!event.dataTransfer) return;
+    const entries = await entriesFromDrop(event.dataTransfer);
+    if (!entries.length) return;
+    const hasTree = entries.some((entry) => entry.path.length > 0);
+    if (hasTree) await uploadTree(entries);
+    else addFiles(entries.map((entry) => entry.file), folderId);
   }
 
   function onMoved() { refresh(); }
@@ -664,6 +737,7 @@
   </header>
 
   <input class="sr-only" type="file" multiple bind:this={uploadInput} on:change={onUploads} />
+  <input class="sr-only" type="file" multiple webkitdirectory directory bind:this={folderUploadInput} on:change={onFolderUploads} />
 
   <div class="files-toolbar">
     <select class="select" style="width:auto;min-height:2.25rem;font-size:var(--text-sm)" value={sort} on:change={(event) => { sort = event.target.value; dir = 'asc'; load(); }} aria-label="Sortieren nach">
@@ -674,6 +748,7 @@
     </select>
     <IconButton name={dir === 'asc' ? 'arrow-up' : 'arrow-down'} label={dir === 'asc' ? 'Aufsteigend' : 'Absteigend'} onclick={() => toggleSort(sort)} />
     <span class="grow"></span>
+    <IconButton name="folder-up" label="Ordner hochladen" onclick={chooseFolderUploads} />
     <span class="tag">{view === 'grid' ? 'Raster' : 'Liste'}</span>
     <div class="segmented" role="group" aria-label="Ansicht">
       <button type="button" aria-pressed={view === 'list'} on:click={() => setView('list')} aria-label="Listenansicht"><Icon name="list" size={16} /></button>

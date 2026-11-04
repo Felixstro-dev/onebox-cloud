@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { config, paths } from './config.js';
 import { runMigrations, closeDb, db, schema } from './db/index.js';
 import { and, eq } from 'drizzle-orm';
-import { cleanupTemp } from './services/storage.js';
+import { cleanupAbandonedUploads } from './services/storage.js';
 
 async function main() {
   await runMigrations();
@@ -12,9 +12,9 @@ async function main() {
   console.log(`[onebox] listening on http://${config.host}:${config.port}`);
 
   fs.mkdirSync(paths.runtime, { recursive: true });
-  cleanupTemp().catch(() => {});
+  cleanupAbandonedUploads().catch(() => {});
 
-  const cleanup = setInterval(() => cleanupTemp().catch(() => {}), 6 * 60 * 60 * 1000);
+  const cleanup = setInterval(() => cleanupAbandonedUploads().catch(() => {}), 6 * 60 * 60 * 1000);
   cleanup.unref?.();
 
   // Papierkorb automatisch leeren: Dateien, die älter als 7 Tage sind.

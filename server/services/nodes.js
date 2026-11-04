@@ -221,6 +221,14 @@ export function selectionCount(userId, selection) {
   return selectionRows(userId, selection).length;
 }
 
+export function findChildByName(userId, parentId, desired) {
+  const name = cleanName(desired);
+  const clauses = [eq(n.ownerId, userId), eq(n.nameKey, nameKey(name)), isNull(n.trashedAt)];
+  if (parentId) clauses.push(eq(n.parentId, parentId));
+  else clauses.push(isNull(n.parentId));
+  return db.select().from(n).where(and(...clauses)).get() || null;
+}
+
 export function uniqueName(userId, parentId, desired, ignoreId = null) {
   const name = cleanName(desired);
   const clauses = [eq(n.ownerId, userId), eq(n.nameKey, nameKey(name)), sql`${n.trashedAt} is null`];

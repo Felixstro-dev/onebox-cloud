@@ -1,24 +1,31 @@
 <script>
-  import { queue, pause, resume, retry, remove, clearFinished, totalProgress, attachFile, concurrency } from '../lib/uploads.js';
+  import { onMount } from 'svelte';
+  import { queue, pause, resume, retry, remove, clearFinished, totalProgress, attachFile, restoreQueue, resolveConflict, concurrency } from '../lib/uploads.js';
   import { jobs, removeJob, clearFinishedJobs } from '../lib/jobs.js';
   import { uploadsOpen } from '../lib/stores.js';
   import { bytes } from '../lib/format.js';
   import Icon from './Icon.svelte';
   import IconButton from './IconButton.svelte';
   import ProgressBar from './ProgressBar.svelte';
+  import Dialog from './Dialog.svelte';
+  import Button from './Button.svelte';
 
   let fileInput;
   let pendingItem = null;
+  let conflictChoice = 'keepBoth';
+  let conflictAll = false;
   const MAX_VISIBLE_ITEMS = 20;
   const labels = {
     queued: 'Wartet', uploading: 'Lädt hoch', paused: 'Pausiert', done: 'Fertig',
     error: 'Fehlgeschlagen', canceled: 'Abgebrochen', 'needs-file': 'Datei erneut wählen',
+    conflict: 'Name vergeben',
   };
 
   $: items = $queue;
   $: visibleItems = $queue.slice(0, MAX_VISIBLE_ITEMS);
   $: progress = totalProgress(items);
   $: active = items.filter((item) => !['done', 'canceled'].includes(item.status));
+  $: conflictItem = items.find((item) => item.status === 'conflict') || null;
   $: jobItems = $jobs;
   $: activeJobs = jobItems.filter((job) => job.status === 'running');
   $: openCount = active.length + activeJobs.length;
@@ -42,6 +49,14 @@
     if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
   }
 
+  onMount(() => {
+    restoreQueue();
+  });
+
+  function resolve(choice, applyAll) {
+    if (conflictItem) resolveConflict(conflictItem.id, choice, applyAll);
+  }
+
   function chooseFile(item) {
     pendingItem = item;
     fileInput?.click();
@@ -60,7 +75,8 @@
       const eta = item.eta ? ` · noch ${Math.ceil(item.eta)} s` : '';
       return `${speed}${eta}`;
     }
-    if (item.status === 'done') return 'Abgeschlossen';
+    if (item.status === 'done') return item.skipped ? 'Übersprungen' : 'Abgeschlossen';
+    if (item.status === 'conflict') return 'Name bereits vorhanden';
     return labels[item.status] || item.status;
   }
 </script>
@@ -142,6 +158,28 @@
       <p class="menu-note" style="padding:var(--space-6)">Noch keine Uploads. Ziehe Dateien in den Dateibereich oder wähle sie über „Hochladen“.</p>
     {/if}
   </section>
+
+  <Dialog open={Boolean(conflictItem)} title="Name bereits vorhanden" description={conflictItem ? `„${conflictItem.name}“ existiert in diesem Ordner schon.` : ''} size="sm" onclose={() => resolve('keepBoth', false)}>
+    <p class="field__hint">Was soll mit der neuen Datei passieren?</p>
+    <div class="extract-options">
+      <label class="extract-option">
+        <input type="radio" name="upload-conflict" value="replace" bind:group={conflictChoice} />
+        <span><strong>Ersetzen</strong><small>Die vorhandene Datei wandert in den Papierkorb.</small></span>
+      </label>
+      <label class="extract-option">
+        <input type="radio" name="upload-conflict" value="keepBoth" bind:group={conflictChoice} />
+        <span><strong>Beide behalten</strong><small>Die neue Datei bekommt automatisch einen Zusatz.</small></span>
+      </label>
+      <label class="extract-option">
+        <input type="radio" name="upload-conflict" value="skip" bind:group={conflictChoice} />
+        <span><strong>Überspringen</strong><small>Die vorhandene Datei bleibt unverändert.</small></span>
+      </label>
+    </div>
+    <label class="checkline"><input type="checkbox" bind:checked={conflictAll} /> Für alle weiteren Dateien anwenden</label>
+    <svelte:fragment slot="footer">
+      <Button variant="primary" onclick={() => resolve(conflictChoice, conflictAll)}>Übernehmen</Button>
+    </svelte:fragment>
+  </Dialog>
 {:else if openCount}
   <button type="button" class="upload-fab" on:click={() => ($uploadsOpen = true)} aria-label={`Jobs öffnen, ${openCount} offen`}>
     <span class="spinner-ring" style={`--p:${progress.percent}`} aria-hidden="true"></span>

@@ -105,3 +105,22 @@ export async function cleanupTemp(maxAgeMs = 24 * 60 * 60 * 1000) {
     if (stat && now - stat.mtimeMs > maxAgeMs) await fsp.unlink(full).catch(() => {});
   }
 }
+
+/**
+ * Entfernt abgebrochene Upload-Sessions aus DB und Dateisystem. Läuft beim
+ * Start und danach alle sechs Stunden; Standard sind 24 Stunden.
+ */
+export async function cleanupAbandonedUploads(maxAgeMs = 24 * 60 * 60 * 1000) {
+  const [{ db, schema }, { eq, lt }] = await Promise.all([
+    import('../db/index.js'),
+    import('drizzle-orm'),
+  ]);
+  const cutoff = Date.now() - maxAgeMs;
+  const rows = db.select().from(schema.uploadSessions).where(lt(schema.uploadSessions.updatedAt, cutoff)).all();
+  for (const row of rows) {
+    db.delete(schema.uploadSessions).where(eq(schema.uploadSessions.id, row.id)).run();
+    await fsp.unlink(row.tempKey).catch(() => {});
+  }
+  await cleanupTemp(maxAgeMs);
+  return rows.length;
+}
