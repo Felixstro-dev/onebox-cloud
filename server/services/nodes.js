@@ -39,15 +39,52 @@ export function breadcrumbs(userId, folderId) {
   return rows;
 }
 
-export function listChildren(userId, parentId, { sort = 'name', dir = 'asc', limit = 100, cursor = null, trashed = false, kind = null } = {}) {
-  const sortMap = {
-    name: [n.nameKey, n.id],
-    size: [n.size, n.id],
-    updated: [n.updatedAt, n.id],
-    created: [n.createdAt, n.id],
-  };
-  const [field] = sortMap[sort] || sortMap.name;
-  const direction = dir === 'desc' ? desc : asc;
+/**
+ * Sortierfelder für die Keyset-Pagination. Der Ordner-Rang wird immer zuerst
+ * sortiert, damit Ordner unabhängig von der Richtung vor Dateien stehen.
+ */
+const SORT_FIELDS = {
+  name: 'nameKey',
+  size: 'size',
+  updated: 'updatedAt',
+  updatedAt: 'updatedAt',
+  created: 'createdAt',
+  createdAt: 'createdAt',
+  kind: 'kind',
+  type: 'kind',
+};
+
+export function normalizeSort(sort) {
+  return SORT_FIELDS[sort] ? sort : 'name';
+}
+
+function sortField(sort) {
+  return n[SORT_FIELDS[normalizeSort(sort)]];
+}
+
+function decodeCursor(cursor) {
+  if (!cursor) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(String(cursor), 'base64url').toString('utf8'));
+    if (!parsed || typeof parsed.i !== 'string') return null;
+    return { value: parsed.v, id: parsed.i, rank: parsed.rank };
+  } catch {
+    return null;
+  }
+}
+
+function cursorClause(cursor, sort, dir) {
+  const decoded = decodeCursor(cursor);
+  if (!decoded) return null;
+  const rank = sql`case when ${n.kind} = 'folder' then 0 else 1 end`;
+  const field = sortField(sort);
+  const move = dir === 'desc' ? sql`<` : sql`>`;
+  const value = decoded.value;
+  const sameRankAfter = sql`(${field} ${move} ${value} or (${field} = ${value} and ${n.id} ${move} ${decoded.id}))`;
+  return sql`(${rank} > ${decoded.rank ?? 0} or (${rank} = ${decoded.rank ?? 0} and ${sameRankAfter}))`;
+}
+
+function buildClauses(userId, parentId, { trashed = false, kind = null, q = null } = {}) {
   const clauses = [eq(n.ownerId, userId)];
   if (!trashed) {
     clauses.push(isNull(n.trashedAt));
@@ -58,24 +95,56 @@ export function listChildren(userId, parentId, { sort = 'name', dir = 'asc', lim
     if (parentId) clauses.push(eq(n.parentId, parentId));
   }
   if (kind) clauses.push(eq(n.kind, kind));
-  let rows = db.select().from(n).where(and(...clauses)).orderBy(direction(field), direction(n.id)).limit(limit + 1).all();
+  if (q) clauses.push(like(n.nameKey, `%${escapeLike(q)}%`));
+  return clauses;
+}
+
+export function listChildren(userId, parentId, { sort = 'name', dir = 'asc', limit = 100, cursor = null, trashed = false, kind = null, q = null } = {}) {
+  sort = normalizeSort(sort);
+  const direction = dir === 'desc' ? desc : asc;
+  const rank = sql`case when ${n.kind} = 'folder' then 0 else 1 end`;
+  const field = sortField(sort);
+  const clauses = buildClauses(userId, parentId, { trashed, kind, q });
+  const total = db.select({ c: sql`count(*)` }).from(n).where(and(...clauses)).get()?.c || 0;
+
+  let rows = [];
+  if (!total) {
+    return { items: [], nextCursor: null, next: null, total: 0 };
+  }
+
   if (trashed) {
-    rows = rows.filter((row) => {
+    // Papierkorb: Kinder eines mitgelöschten Ordners nicht doppelt anzeigen.
+    const all = db.select().from(n).where(and(...clauses)).orderBy(asc(rank), direction(field), direction(n.id)).all();
+    const filtered = all.filter((row) => {
       const parent = row.parentId ? db.select({ t: n.trashedAt }).from(n).where(eq(n.id, row.parentId)).get() : null;
       return !parent || parent.t !== row.trashedAt;
     });
+    let start = 0;
+    if (cursor) {
+      const index = filtered.findIndex((row) => row.id === cursor);
+      start = index >= 0 ? index + 1 : 0;
+    }
+    const page = filtered.slice(start, start + limit);
+    const next = start + limit < filtered.length ? page.at(-1)?.id || null : null;
+    return { items: page.map(toClient), nextCursor: next, next, total: filtered.length };
   }
-  let offset = 0;
-  if (cursor) {
-    const index = rows.findIndex((row) => row.id === cursor);
-    offset = index >= 0 ? index + 1 : 0;
-  }
-  const page = rows.slice(offset, offset + limit);
-  const total = db.select({ c: sql`count(*)` }).from(n).where(and(...clauses)).get()?.c || 0;
+
+  const sqlCursor = cursor ? decodeCursor(cursor) : null;
+  const after = sqlCursor && sqlCursor.rank !== undefined ? cursorClause(cursor, sort, dir) : null;
+  const where = after ? and(...clauses, after) : and(...clauses);
+  rows = db.select().from(n).where(where).orderBy(asc(rank), direction(field), direction(n.id)).limit(limit + 1).all();
+
+  const page = rows.slice(0, limit);
+  const hasMore = rows.length > limit;
+  const last = page.at(-1);
+  const nextCursor = hasMore && last
+    ? Buffer.from(JSON.stringify({ v: last[SORT_FIELDS[sort]], i: last.id, rank: last.kind === 'folder' ? 0 : 1 }), 'utf8').toString('base64url')
+    : null;
   return {
     items: page.map(toClient),
-    next: rows.length > offset + limit ? page.at(-1)?.id : null,
-    total,
+    nextCursor,
+    next: nextCursor,
+    total: Math.max(total, 0),
   };
 }
 

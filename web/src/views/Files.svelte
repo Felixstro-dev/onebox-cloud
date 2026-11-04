@@ -144,7 +144,7 @@
     failed = '';
     resetSelection();
     try {
-      const data = await get(`/api/v1/files?parent=${folderId || 'root'}&sort=${sort}&dir=${dir}&limit=200`);
+      const data = await get(`/api/v1/files?parent=${folderId || 'root'}&sort=${sort}&dir=${dir}&limit=100`);
       items = data.items;
       total = Number(data.total) || items.length;
       breadcrumbs = data.breadcrumbs || [];
@@ -168,7 +168,7 @@
     if (loadingMore || !nextCursor) return;
     loadingMore = true;
     try {
-      const data = await get(`/api/v1/files?parent=${folderId || 'root'}&sort=${sort}&dir=${dir}&limit=200&cursor=${encodeURIComponent(nextCursor)}`);
+      const data = await get(`/api/v1/files?parent=${folderId || 'root'}&sort=${sort}&dir=${dir}&limit=100&cursor=${encodeURIComponent(nextCursor)}`);
       if (Array.isArray(data.items) && data.items.length) items = [...items, ...data.items];
       if (data.total !== undefined) total = Number(data.total) || total;
       nextCursor = data.next || null;
@@ -751,7 +751,7 @@
 
   {#if selectedCount > 0 && !trashBusy}
     <div class="selection-bar" role="toolbar" aria-label="Auswahl">
-      <strong class="selection-bar__count">{selectedCount.toLocaleString('de-DE')} ausgewählt</strong>
+      <strong class="selection-bar__count">{selectedCount.toLocaleString('de-DE')} von {total.toLocaleString('de-DE')} ausgewählt</strong>
       <Button variant="quiet" size="sm" icon="x" onclick={resetSelection}>Aufheben</Button>
       {#if singleSelected}
         <Button variant="quiet" size="sm" icon="link" onclick={() => (shareNode = singleSelected)}>Teilen</Button>

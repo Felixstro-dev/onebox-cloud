@@ -263,6 +263,8 @@ button { cursor: pointer; }
 .files-toolbar .grow { flex: 1; }
 .file-list { background: var(--color-bg-sidebar); border-radius: var(--radius-xl); overflow: hidden; }
 .file-list-sentinel { height: 1px; }
+/* Browser-Virtualisierung: weit außerhalb des Viewports wird nicht gerendert. */
+.file-row { content-visibility: auto; contain-intrinsic-size: auto 3.25rem; }
 .file-row {
   display: grid; grid-template-columns: 2.5rem minmax(0, 2.4fr) minmax(0, .9fr) minmax(0, .9fr) 2.75rem;
   align-items: center; gap: var(--space-2); min-height: 3.25rem; padding: 0 var(--space-3);
@@ -290,7 +292,7 @@ button { cursor: pointer; }
 .file-icon--video { background: color-mix(in srgb, var(--color-tile-slides) 45%, var(--color-bg-elevated)); }
 .file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); gap: var(--space-3); }
 .file-grid-sentinel { grid-column: 1 / -1; height: 1px; }
-.file-tile { background: var(--color-bg-sidebar); border-radius: var(--radius-lg); overflow: hidden; border: 1px solid transparent; position: relative; transition: border-color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out); }
+.file-tile { content-visibility: auto; contain-intrinsic-size: auto 13rem; background: var(--color-bg-sidebar); border-radius: var(--radius-lg); overflow: hidden; border: 1px solid transparent; position: relative; transition: border-color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out); }
 .file-tile:hover { border-color: var(--color-border-default); background: var(--color-bg-elevated); }
 .file-tile.is-selected { border-color: var(--color-accent-brand); }
 .file-tile__preview { aspect-ratio: 4/3; background: var(--color-bg-deep); display: grid; place-items: center; overflow: hidden; position: relative; color: var(--color-text-secondary); }

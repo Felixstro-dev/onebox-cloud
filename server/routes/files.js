@@ -87,17 +87,21 @@ export function sendFile(reply, node, { inline = false, rangeHeader = null } = {
 export async function registerFileRoutes(app) {
   app.get('/api/v1/files', async (req) => {
     const user = requireUser(req);
-    const parentId = req.query.parent && req.query.parent !== 'root' ? String(req.query.parent) : null;
+    const folderParam = req.query.folder ?? req.query.parent;
+    const parentId = folderParam && folderParam !== 'root' ? String(folderParam) : null;
     if (parentId) getNode(parentId, user.id);
+    const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 100));
     const result = listChildren(user.id, parentId, {
       sort: String(req.query.sort || 'name'),
       dir: String(req.query.dir || 'asc'),
-      limit: Math.min(200, Math.max(1, Number(req.query.limit) || 100)),
+      limit,
       cursor: req.query.cursor ? String(req.query.cursor) : null,
-      kind: req.query.kind ? String(req.query.kind) : null,
+      kind: req.query.type || req.query.kind ? String(req.query.type || req.query.kind) : null,
+      q: req.query.q ? String(req.query.q) : null,
     });
     return {
       ...result,
+      limit,
       parentId,
       breadcrumbs: parentId ? breadcrumbs(user.id, parentId) : [],
     };

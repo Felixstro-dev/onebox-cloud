@@ -57,6 +57,10 @@ export const nodes = sqliteTable('nodes', {
   index('nodes_search_idx').on(t.ownerId, t.nameKey),
   index('nodes_trash_idx').on(t.ownerId, t.trashedAt),
   index('nodes_photo_idx').on(t.ownerId, t.mime, t.takenAt),
+  index('nodes_page_name_idx').on(t.ownerId, t.trashedAt, t.parentId, t.kind, t.nameKey, t.id),
+  index('nodes_page_size_idx').on(t.ownerId, t.trashedAt, t.parentId, t.kind, t.size, t.id),
+  index('nodes_page_updated_idx').on(t.ownerId, t.trashedAt, t.parentId, t.kind, t.updatedAt, t.id),
+  index('nodes_parent_folder_idx').on(t.ownerId, t.parentId, t.trashedAt, t.kind),
 ]);
 
 export const shares = sqliteTable('shares', {
