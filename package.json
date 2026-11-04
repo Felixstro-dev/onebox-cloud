@@ -16,7 +16,8 @@
     "start": "node server/index.js",
     "db:generate": "drizzle-kit generate",
     "test": "node --test tests/*.test.js",
-    "agent": "node agent/bin/onebox-backup.js"
+    "agent": "node agent/bin/onebox-backup.js",
+    "test:e2e": "npm run build && node --test --test-concurrency=1 tests/e2e/*.test.js"
   },
   "dependencies": {
     "@fastify/compress": "^9.3.0",
@@ -69,6 +70,7 @@
     "eslint-plugin-svelte": "^3.24.0",
     "jszip": "^3.10.2",
     "lucide-static": "^0.511.0",
+    "playwright": "^1.64.1",
     "svelte": "^5.33.1",
     "svelte-check": "^4.7.8",
     "svelte-eslint-parser": "^1.10.1",

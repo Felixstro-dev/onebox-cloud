@@ -323,10 +323,10 @@ async function run(item) {
     }
     const result = await completeUpload(sessionId, { conflict: item.conflictChoice || defaultConflict || 'keepBoth' });
     if (result?.skipped) {
-      update(item.id, { status: 'done', uploaded: item.size, speed: 0, eta: 0, busy: false, sessionId: null, skipped: true });
+      update(item.id, { status: 'done', uploaded: item.size, speed: 0, eta: 0, busy: false, sessionId: null, skipped: true, finishedAt: Date.now() });
       notify(`${item.name} existiert bereits und wurde übersprungen.`, 'info');
     } else {
-      update(item.id, { status: 'done', uploaded: item.size, speed: 0, eta: 0, busy: false, sessionId: null });
+      update(item.id, { status: 'done', uploaded: item.size, speed: 0, eta: 0, busy: false, sessionId: null, finishedAt: Date.now() });
       notify(`${item.name} ist hochgeladen.`, 'success');
     }
     persist();
@@ -336,7 +336,7 @@ async function run(item) {
       update(item.id, { busy: false });
       return;
     }
-    update(item.id, { status: 'error', error: error.message, busy: false, speed: 0 });
+    update(item.id, { status: 'error', error: error.message, busy: false, speed: 0, finishedAt: Date.now() });
     persist();
     notify(`${item.name}: ${error.message}`, 'error', 6000);
   }

@@ -6,9 +6,8 @@
   import { bytes } from './lib/format.js';
   import Icon from './components/Icon.svelte';
   import IconButton from './components/IconButton.svelte';
-  import ToastHost from './components/ToastHost.svelte';
+  import BottomLayer from './components/BottomLayer.svelte';
   import ConfirmHost from './components/ConfirmHost.svelte';
-  import UploadPanel from './components/UploadPanel.svelte';
   import Login from './views/Login.svelte';
   import Setup from './views/Setup.svelte';
   import Dashboard from './views/Dashboard.svelte';
@@ -295,8 +294,7 @@
       </nav>
     </div>
   </div>
-  <UploadPanel />
+  <BottomLayer />
 {/if}
 
-<ToastHost />
 <ConfirmHost />

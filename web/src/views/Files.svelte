@@ -1,11 +1,12 @@
 <script>
-  import { onMount, tick } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { get as readStore } from 'svelte/store';
   import { get, post, patch, del } from '../lib/api.js';
   import { addFiles } from '../lib/uploads.js';
   import { notify, refresh, refreshKey, confirmAction } from '../lib/stores.js';
   import { clipboard } from '../lib/clipboard.js';
-  import { startJob, finishJob, failJob } from '../lib/jobs.js';
+  import { refreshJobs } from '../lib/jobs.js';
+  import { selectionBar } from '../lib/selection-bar.js';
   import { navigate } from '../lib/router.js';
   import { bytes, dateTime, fileKind } from '../lib/format.js';
   import Icon from '../components/Icon.svelte';
@@ -114,6 +115,22 @@
   $: selectedItems = selectAllMode ? [] : items.filter((item) => selected.has(item.id));
   $: singleSelected = !selectAllMode && selected.size === 1 && selectedCount === 1 ? (selectedItems[0] || null) : null;
   $: zipSingle = singleSelected && isZip(singleSelected) ? singleSelected : null;
+  $: selectionBar.set(selectedCount > 0 ? {
+    count: selectedCount,
+    total,
+    single: singleSelected,
+    zipSingle,
+    busy: trashBusy,
+    onClear: resetSelection,
+    onShare: () => (shareNode = singleSelected),
+    onMove: () => (moveNode = singleSelected),
+    onDownloadZip: downloadZip,
+    onCreateZip: openZipCreate,
+    onExtract: () => openExtract(zipSingle),
+    onTrash: trashSelection,
+  } : null);
+
+  onDestroy(() => selectionBar.set(null));
   $: checkboxChecked = selectedCount > 0 && (selectAllMode
     ? excluded.size === 0
     : items.length > 0 && selected.size === items.length && total <= items.length);
@@ -710,19 +727,10 @@
     });
     if (!ok) return;
     trashBusy = true;
-    const jobId = startJob({
-      kind: 'trash',
-      title: `Lösche ${countNow.toLocaleString('de-DE')} ${countNow === 1 ? 'Element' : 'Elemente'} …`,
-      detail: 'Wird in den Papierkorb verschoben',
-      count: countNow,
-    });
     try {
       const result = await post('/api/v1/files/trash', selectionBody());
       const moved = Number(result.trashed) || countNow;
-      finishJob(jobId, {
-        title: `${moved.toLocaleString('de-DE')} ${moved === 1 ? 'Element' : 'Elemente'} gelöscht`,
-        detail: 'In den Papierkorb verschoben',
-      });
+      refreshJobs();
       notify(
         `${moved.toLocaleString('de-DE')} ${moved === 1 ? 'Element' : 'Elemente'} in den Papierkorb verschoben.`,
         'success',
@@ -732,7 +740,7 @@
       resetSelection();
       await load();
     } catch (err) {
-      failJob(jobId, { title: 'Löschen fehlgeschlagen', detail: err.message || 'Bitte erneut versuchen.' });
+      refreshJobs();
       notify(err.message || 'Löschen fehlgeschlagen.', 'error');
     } finally {
       trashBusy = false;
@@ -749,20 +757,14 @@
     });
     if (!ok) return;
     trashBusy = true;
-    const jobId = startJob({
-      kind: 'trash',
-      title: 'Lösche 1 Element …',
-      detail: item.name,
-      count: 1,
-    });
     try {
       const result = await post('/api/v1/files/trash', { ids: [item.id] });
-      finishJob(jobId, { title: 'Element gelöscht', detail: 'In den Papierkorb verschoben' });
+      refreshJobs();
       notify('Element in den Papierkorb verschoben.', 'success', 10000, result.stamp ? undoTrash(result.stamp) : null);
       resetSelection();
       await load();
     } catch (err) {
-      failJob(jobId, { title: 'Löschen fehlgeschlagen', detail: err.message || 'Bitte erneut versuchen.' });
+      refreshJobs();
       notify(err.message || 'Löschen fehlgeschlagen.', 'error');
     } finally {
       trashBusy = false;
@@ -1113,7 +1115,7 @@
     </div>
   </header>
 
-  <input class="sr-only" type="file" multiple bind:this={uploadInput} on:change={onUploads} />
+  <input class="sr-only" type="file" multiple data-testid="files-upload-input" bind:this={uploadInput} on:change={onUploads} />
   <input class="sr-only" type="file" multiple webkitdirectory directory bind:this={folderUploadInput} on:change={onFolderUploads} />
 
   <div class="files-toolbar">
@@ -1241,23 +1243,6 @@
         </div>
       {/each}
       <div class="file-grid-sentinel" use:infiniteScroll aria-hidden="true"></div>
-    </div>
-  {/if}
-
-  {#if selectedCount > 0 && !trashBusy}
-    <div class="selection-bar" role="toolbar" aria-label="Auswahl">
-      <strong class="selection-bar__count">{selectedCount.toLocaleString('de-DE')} von {total.toLocaleString('de-DE')} ausgewählt</strong>
-      <Button variant="quiet" size="sm" icon="x" onclick={resetSelection}>Aufheben</Button>
-      {#if singleSelected}
-        <Button variant="quiet" size="sm" icon="link" onclick={() => (shareNode = singleSelected)}>Teilen</Button>
-        <Button variant="quiet" size="sm" icon="folder-input" onclick={() => (moveNode = singleSelected)}>Verschieben</Button>
-      {/if}
-      <Button variant="quiet" size="sm" icon="file-archive" onclick={downloadZip}>Als ZIP herunterladen</Button>
-      <Button variant="quiet" size="sm" icon="folder-archive" onclick={openZipCreate}>ZIP erstellen</Button>
-      {#if zipSingle}
-        <Button variant="quiet" size="sm" icon="package-open" onclick={() => openExtract(zipSingle)}>Entpacken</Button>
-      {/if}
-      <Button variant="danger" size="sm" icon="trash-2" loading={trashBusy} disabled={trashBusy} onclick={trashSelection}>Löschen</Button>
     </div>
   {/if}
 

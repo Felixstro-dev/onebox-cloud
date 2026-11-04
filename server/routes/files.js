@@ -14,6 +14,7 @@ import crypto from 'node:crypto';
 import { isImage, canInline } from '../lib/names.js';
 import { assertSafeName, safeSegments } from '../lib/paths.js';
 import { thumbnails } from '../services/runtime.js';
+import { createJob, failJob, finishJob, updateJob } from '../services/activity-jobs.js';
 
 const MAX_RANGE_CHUNK = 8 * 1024 * 1024;
 
@@ -211,10 +212,31 @@ export async function registerFileRoutes(app) {
     const isSelectAll = req.body.selectAll === true;
     if (!isSelectAll && (!Array.isArray(req.body.ids) || !req.body.ids.length)) throw badRequest('Keine Elemente ausgewählt.');
     if (isSelectAll && !req.body.filter) throw badRequest('Für "Alle auswählen" fehlt der Filter.');
-    const result = isSelectAll ? trashSelection(user.id, req.body) : await trashNodes(user.id, req.body.ids);
-    const label = `${result.trashed} Element(e)`;
-    activity(user.id, 'node.trash', 'node', isSelectAll ? null : req.body.ids[0], label, req.ip);
-    return result;
+    const total = selectionCount(user.id, req.body);
+    const job = createJob({
+      userId: user.id,
+      kind: 'trash',
+      title: `Lösche ${total.toLocaleString('de-DE')} ${total === 1 ? 'Element' : 'Elemente'} …`,
+      detail: 'Wird in den Papierkorb verschoben',
+      total,
+    });
+    try {
+      updateJob(job, { processed: 0 });
+      const result = isSelectAll ? trashSelection(user.id, req.body) : await trashNodes(user.id, req.body.ids);
+      finishJob(job, {
+        title: `${result.trashed.toLocaleString('de-DE')} ${result.trashed === 1 ? 'Element' : 'Elemente'} gelöscht`,
+        detail: 'In den Papierkorb verschoben',
+        processed: result.trashed,
+        total: result.trashed,
+        result,
+      });
+      const label = `${result.trashed} Element(e)`;
+      activity(user.id, 'node.trash', 'node', isSelectAll ? null : req.body.ids[0], label, req.ip);
+      return { ...result, jobId: job.id };
+    } catch (error) {
+      failJob(job, { title: 'Löschen fehlgeschlagen', detail: 'Bitte erneut versuchen.', message: error.message });
+      throw error;
+    }
   });
 
   app.post('/api/v1/files/trash/restore', {

@@ -1,58 +1,47 @@
 import { writable } from 'svelte/store';
+import { get as apiGet, del } from './api.js';
 
-// Kurzlebige Hintergrund-Jobs (z. B. Papierkorb), die im Upload-Panel erscheinen.
+// Der Status kommt aus der serverseitigen Job-Queue. Die Oberfläche hält
+// keinen eigenen Job-Zustand mehr, der nach einer Aktion hängen bleiben kann.
 export const jobs = writable([]);
 
-let jobSeq = 0;
-const timers = new Map();
+let timer = null;
+let requestSeq = 0;
+let appliedSeq = 0;
 
-function clearTimer(id) {
-  const timer = timers.get(id);
-  if (timer) {
-    clearTimeout(timer);
-    timers.delete(id);
+export function isActiveJob(job) {
+  return Boolean(job) && ['queued', 'running', 'error'].includes(job.status);
+}
+
+export async function refreshJobs() {
+  const seq = ++requestSeq;
+  try {
+    const data = await apiGet('/api/v1/jobs');
+    // Ältere Antworten dürfen neuere nicht überschreiben.
+    if (seq < appliedSeq) return;
+    appliedSeq = seq;
+    jobs.set(Array.isArray(data?.jobs) ? data.jobs : []);
+  } catch {
+    // Netzwerkfehler: Die zuletzt bekannten Jobs bleiben sichtbar.
   }
 }
 
-export function startJob({ kind = 'task', title, detail = '', count = 0, cancel = null }) {
-  const id = ++jobSeq;
-  clearTimer(id);
-  jobs.update((list) => [
-    { id, kind, title, detail, count, cancel, status: 'running', startedAt: Date.now() },
-    ...list,
-  ]);
-  return id;
+export function startJobsPolling(interval = 1200) {
+  if (timer) return;
+  refreshJobs();
+  timer = setInterval(() => {
+    if (typeof document !== 'undefined' && document.hidden) return;
+    refreshJobs();
+  }, interval);
+  timer.unref?.();
 }
 
-export function updateJob(id, patch) {
-  jobs.update((list) => list.map((job) => (job.id === id ? { ...job, ...patch } : job)));
+export function stopJobsPolling() {
+  if (timer) clearInterval(timer);
+  timer = null;
 }
 
-export function finishJob(id, { title, detail, timeout = 3200 } = {}) {
-  updateJob(id, {
-    status: 'done',
-    ...(title !== undefined ? { title } : {}),
-    ...(detail !== undefined ? { detail } : {}),
-  });
-  clearTimer(id);
-  if (timeout) timers.set(id, setTimeout(() => removeJob(id), timeout));
-}
-
-export function failJob(id, { title, detail, timeout = 7000 } = {}) {
-  updateJob(id, {
-    status: 'error',
-    ...(title !== undefined ? { title } : {}),
-    ...(detail !== undefined ? { detail } : {}),
-  });
-  clearTimer(id);
-  if (timeout) timers.set(id, setTimeout(() => removeJob(id), timeout));
-}
-
-export function removeJob(id) {
-  clearTimer(id);
-  jobs.update((list) => list.filter((job) => job.id !== id));
-}
-
-export function clearFinishedJobs() {
-  jobs.update((list) => list.filter((job) => job.status === 'running'));
+export async function dismissJob(jobId) {
+  jobs.update((list) => list.filter((job) => job.id !== jobId));
+  try { await del(`/api/v1/jobs/${jobId}`); } catch { /* bereits entfernt */ }
 }

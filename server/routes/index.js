@@ -12,6 +12,7 @@ import { registerPublicRoutes } from './public.js';
 import { registerWebdavRoutes } from './webdav.js';
 import { registerDocumentRoutes } from './documents.js';
 import { registerArchiveRoutes } from './archive.js';
+import { registerJobRoutes } from './jobs.js';
 import { realtime } from '../services/realtime.js';
 import { registerCollabRoute } from '../services/collab.js';
 import { sessionUser } from '../services/auth.js';
@@ -34,6 +35,7 @@ export async function registerRoutes(app) {
     await registerSystemRoutes(scope);
     await registerFileRoutes(scope);
     await registerArchiveRoutes(scope);
+    await registerJobRoutes(scope);
     await registerUploadRoutes(scope);
     await registerShareRoutes(scope);
     await registerPhotoRoutes(scope);

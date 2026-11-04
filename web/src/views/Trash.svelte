@@ -1,10 +1,11 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { get, post, del } from '../lib/api.js';
   import { notify, refresh, refreshKey, confirmAction } from '../lib/stores.js';
   import { bytes, dateTime, dayLabel } from '../lib/format.js';
   import Icon from '../components/Icon.svelte';
   import Button from '../components/Button.svelte';
+  import { selectionBar } from '../lib/selection-bar.js';
   import EmptyState from '../components/EmptyState.svelte';
 
   let groups = [];
@@ -14,6 +15,15 @@
   let busy = false;
 
   $: if ($refreshKey) load();
+  $: selectionBar.set(selected.size > 0 ? {
+    label: `${selected.size} ausgewählt`,
+    busy,
+    onClear: () => (selected = new Set()),
+    onTrash: () => deleteForever([...selected]),
+    trashLabel: 'Endgültig löschen',
+  } : null);
+
+  onDestroy(() => selectionBar.set(null));
 
   onMount(load);
 
@@ -106,12 +116,5 @@
       </section>
     {/each}
 
-    {#if selected.size}
-      <div class="selection-bar" role="toolbar" aria-label="Auswahl">
-        <span>{selected.size} ausgewählt</span>
-        <Button variant="quiet" size="sm" onclick={() => (selected = new Set())}>Aufheben</Button>
-        <Button variant="danger" size="sm" icon="trash-2" onclick={() => deleteForever([...selected])}>Endgültig löschen</Button>
-      </div>
-    {/if}
   {/if}
 </div>
