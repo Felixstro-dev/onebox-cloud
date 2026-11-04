@@ -80,7 +80,7 @@ export function sanitize(html) {
     USE_PROFILES: { html: true },
     FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'link', 'meta'],
     FORBID_ATTR: ['style', 'onerror', 'onclick', 'onload', 'onmouseover', 'srcdoc'],
-    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|blob|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|blob|data):|[^a-z]|[a-z+.-]+(?:[^a-z+.:-]|$))/i,
     addTags: ['input'],
     allowUnknownTags: false,
   });
