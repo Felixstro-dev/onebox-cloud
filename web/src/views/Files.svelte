@@ -1,8 +1,10 @@
 <script>
   import { onMount, tick } from 'svelte';
+  import { get as readStore } from 'svelte/store';
   import { get, post, patch, del } from '../lib/api.js';
   import { addFiles } from '../lib/uploads.js';
   import { notify, refresh, refreshKey, confirmAction } from '../lib/stores.js';
+  import { clipboard } from '../lib/clipboard.js';
   import { startJob, finishJob, failJob } from '../lib/jobs.js';
   import { navigate } from '../lib/router.js';
   import { bytes, dateTime, fileKind } from '../lib/format.js';
@@ -20,18 +22,34 @@
 
   export let folderId = null;
 
+  const SORT_FIELDS = ['name', 'updatedAt', 'size', 'kind'];
+  const initialQuery = new URLSearchParams(window.location.search);
+  const initialView = initialQuery.get('view');
+
   let items = [];
   let total = 0;
   let breadcrumbs = [];
   let loading = true;
   let failed = '';
-  let view = localStorage.getItem('onebox-view') === 'grid' ? 'grid' : 'list';
-  let sort = 'name';
-  let dir = 'asc';
+  let view = initialView === 'grid' || initialView === 'list'
+    ? initialView
+    : (localStorage.getItem('onebox-view') === 'grid' ? 'grid' : 'list');
+  let sort = SORT_FIELDS.includes(initialQuery.get('sort')) ? initialQuery.get('sort') : 'name';
+  let dir = initialQuery.get('dir') === 'desc' ? 'desc' : 'asc';
   let selected = new Set();
+  let anchorId = null;
+  let focusedId = null;
+  let rowRefs = [];
   let dragOver = false;
   let dragDepth = 0;
+  let dragIds = [];
+  let dropTarget = null;
+  let menuSheet = false;
   let menu = { open: false, x: 0, y: 0, item: null };
+  let helpOpen = false;
+  let pressTimer = null;
+  let pressStart = null;
+  let suppressClick = false;
   let createOpen = false;
   let createName = '';
   let createBusy = false;
@@ -50,8 +68,25 @@
   let lastRefresh = -1;
   let nextCursor = null;
   let loadingMore = false;
-  let lastSort = 'name';
-  let lastDir = 'asc';
+  let lastSort = sort;
+  let lastDir = dir;
+
+  const SHORTCUTS = [
+    { keys: ['Entf'], label: 'In den Papierkorb' },
+    { keys: ['F2'], label: 'Umbenennen' },
+    { keys: ['Strg', 'A'], label: 'Alles auswählen' },
+    { keys: ['Esc'], label: 'Auswahl aufheben' },
+    { keys: ['Enter'], label: 'Öffnen' },
+    { keys: ['↑', '↓'], label: 'Navigieren' },
+    { keys: ['Shift', '↑'], label: 'Bereich auswählen' },
+    { keys: ['Leertaste'], label: 'Auswahl umschalten' },
+    { keys: ['Strg', 'C'], label: 'Kopieren' },
+    { keys: ['Strg', 'X'], label: 'Ausschneiden' },
+    { keys: ['Strg', 'V'], label: 'Einfügen' },
+    { keys: ['/'], label: 'Suche fokussieren' },
+    { keys: ['?'], label: 'Diese Hilfe' },
+  ];
+
 
   // "Alle auswählen" arbeitet serverseitig mit Filter + Snapshot + Ausnahmen.
   let selectAllMode = false;
@@ -99,21 +134,152 @@
 
   onMount(() => {
     const closeMenu = () => (menu = { ...menu, open: false });
-    const onKey = (event) => {
-      if (event.key === 'Escape') { menu = { ...menu, open: false }; resetSelection(); }
-      if ((event.ctrlKey || event.metaKey) && event.key === 'a' && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
-        event.preventDefault();
-        selectAllNow();
+    const onKey = (event) => onGlobalKey(event);
+    const onPop = () => {
+      const query = new URLSearchParams(window.location.search);
+      const nextView = query.get('view') === 'grid' ? 'grid' : 'list';
+      const nextSort = SORT_FIELDS.includes(query.get('sort')) ? query.get('sort') : 'name';
+      const nextDir = query.get('dir') === 'desc' ? 'desc' : 'asc';
+      if (nextView !== view || nextSort !== sort || nextDir !== dir) {
+        view = nextView;
+        sort = nextSort;
+        dir = nextDir;
       }
     };
     window.addEventListener('click', closeMenu);
     window.addEventListener('keydown', onKey);
+    window.addEventListener('popstate', onPop);
     return () => {
       window.removeEventListener('click', closeMenu);
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('popstate', onPop);
+      clearTimeout(pressTimer);
       stopTransfer();
     };
   });
+
+  function isTyping(target) {
+    if (!target) return false;
+    return ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable;
+  }
+
+  function syncUrl() {
+    const url = new URL(window.location.href);
+    if (view === 'list') url.searchParams.delete('view');
+    else url.searchParams.set('view', view);
+    if (sort === 'name') url.searchParams.delete('sort');
+    else url.searchParams.set('sort', sort);
+    if (dir === 'asc') url.searchParams.delete('dir');
+    else url.searchParams.set('dir', dir);
+    history.replaceState(history.state, '', url);
+  }
+
+  function onGlobalKey(event) {
+    if (event.key === 'Escape') {
+      const hadMenu = menu.open;
+      menu = { ...menu, open: false };
+      if (helpOpen) { helpOpen = false; return; }
+      if (hadMenu) return;
+      resetSelection();
+      return;
+    }
+    if (isTyping(event.target)) return;
+    const mod = event.ctrlKey || event.metaKey;
+    const key = event.key;
+    const index = Math.max(0, items.findIndex((item) => item.id === focusedId));
+
+    if (mod && key.toLowerCase() === 'a') { event.preventDefault(); selectAllNow(); return; }
+    if (mod && key.toLowerCase() === 'c') { event.preventDefault(); copySelection(); return; }
+    if (mod && key.toLowerCase() === 'x') { event.preventDefault(); cutSelection(); return; }
+    if (mod && key.toLowerCase() === 'v') { event.preventDefault(); pasteClipboard(); return; }
+    if (key === 'Delete') {
+      if (selectedCount) { event.preventDefault(); trashSelection(); }
+      return;
+    }
+    if (key === 'F2') {
+      if (singleSelected) { event.preventDefault(); startRename(singleSelected); }
+      return;
+    }
+    if (key === 'Enter') {
+      const item = items.find((entry) => entry.id === focusedId) || singleSelected;
+      if (item) { event.preventDefault(); openItem(item); }
+      return;
+    }
+    if (key === ' ') {
+      if (focusedId) { event.preventDefault(); toggleSelect(focusedId); }
+      return;
+    }
+    if (key === '/') {
+      event.preventDefault();
+      document.querySelector('#global-search')?.focus();
+      return;
+    }
+    if (key === '?') { event.preventDefault(); helpOpen = true; return; }
+    if (['ArrowDown', 'ArrowRight'].includes(key)) {
+      event.preventDefault();
+      focusRow(index + 1, { extend: event.shiftKey });
+      return;
+    }
+    if (['ArrowUp', 'ArrowLeft'].includes(key)) {
+      event.preventDefault();
+      focusRow(index - 1, { extend: event.shiftKey });
+    }
+  }
+
+  function focusRow(index, { extend = false } = {}) {
+    if (!items.length) return;
+    const clamped = Math.max(0, Math.min(items.length - 1, index));
+    const item = items[clamped];
+    focusedId = item.id;
+    if (extend) selectRange(clamped);
+    else selectOnly(item.id);
+    tick().then(() => rowRefs[clamped]?.focus());
+  }
+
+  function selectIds(ids) {
+    selectAllMode = false;
+    excluded = new Set();
+    selectionSnapshot = null;
+    selectionTotal = 0;
+    selectionFilter = null;
+    selected = new Set(ids);
+  }
+
+  function selectOnly(id) {
+    selectIds([id]);
+    anchorId = id;
+    focusedId = id;
+  }
+
+  function selectRange(index) {
+    const item = items[index];
+    if (!item) return;
+    const anchorIndex = items.findIndex((entry) => entry.id === anchorId);
+    if (anchorIndex === -1) { selectOnly(item.id); return; }
+    const from = Math.min(anchorIndex, index);
+    const to = Math.max(anchorIndex, index);
+    selectIds(items.slice(from, to + 1).map((entry) => entry.id));
+    focusedId = item.id;
+  }
+
+  function onItemClick(event, item, index) {
+    if (suppressClick) { suppressClick = false; return; }
+    if (event.target?.closest?.('input[type="checkbox"]')) return;
+    if (event.shiftKey) { selectRange(index); return; }
+    if (event.ctrlKey || event.metaKey) {
+      anchorId = item.id;
+      focusedId = item.id;
+      toggleSelect(item.id);
+      return;
+    }
+    selectOnly(item.id);
+  }
+
+  /** Liefert die IDs, die eine Aktion auf diesem Element betreffen würde. */
+  function selectionIdsForItem(item) {
+    if (isRowSelected(item)) return [...selectionIds()];
+    return [item.id];
+  }
 
   function resetSelection() {
     selected = new Set();
@@ -138,6 +304,20 @@
       };
     }
     return { ids: [...selected] };
+  }
+
+  /** Explizite IDs der aktuellen Auswahl (ohne "alle"-Modus). */
+  function selectionIds() {
+    if (selectAllMode) {
+      return items.filter((item) => !excluded.has(item.id)).map((item) => item.id);
+    }
+    return [...selected];
+  }
+
+  function selectionNodes() {
+    return selectAllMode
+      ? items.filter((item) => !excluded.has(item.id))
+      : items.filter((item) => selected.has(item.id));
   }
 
   async function load() {
@@ -183,12 +363,19 @@
   function setView(next) {
     view = next;
     try { localStorage.setItem('onebox-view', next); } catch {}
+    syncUrl();
   }
 
   function toggleSort(column) {
     if (sort === column) dir = dir === 'asc' ? 'desc' : 'asc';
     else { sort = column; dir = 'asc'; }
-    load();
+    syncUrl();
+  }
+
+  function changeSort(next) {
+    sort = next;
+    dir = 'asc';
+    syncUrl();
   }
 
   function isRowSelected(item) {
@@ -201,12 +388,16 @@
       if (next.has(id)) next.delete(id);
       else next.add(id);
       excluded = next;
+      anchorId = id;
+      focusedId = id;
       return;
     }
     const next = new Set(selected);
     if (next.has(id)) next.delete(id);
     else next.add(id);
     selected = next;
+    anchorId = id;
+    focusedId = id;
   }
 
   async function selectAllNow() {
@@ -281,14 +472,46 @@
     history.replaceState(history.state, '', url);
   }
 
+  function openMenuAt(x, y, item) {
+    if (item && !isRowSelected(item)) selectOnly(item.id);
+    menuSheet = window.matchMedia('(max-width: 700px)').matches;
+    const width = 236;
+    const height = 380;
+    const left = Math.max(8, Math.min(x, window.innerWidth - width - 8));
+    const top = Math.max(8, Math.min(y, window.innerHeight - height));
+    menu = { open: true, x: left, y: top, item };
+  }
+
   function showMenu(event, item) {
     event.stopPropagation();
     if (event.type === 'contextmenu') event.preventDefault();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const menuHeight = 300;
-    const top = Math.min(window.innerHeight - menuHeight, rect.bottom + 4);
-    const left = Math.min(window.innerWidth - 220, Math.max(8, rect.right - 208));
-    menu = { open: true, x: left, y: Math.max(8, top), item };
+    const rect = event.currentTarget?.getBoundingClientRect?.();
+    const x = event.clientX || (rect ? rect.right - 16 : 16);
+    const y = event.clientY || (rect ? rect.bottom + 4 : 16);
+    openMenuAt(x, y, item);
+  }
+
+  /** Long-Press öffnet auf Touch-Geräten dasselbe Menü wie ein Rechtsklick. */
+  function startLongPress(event, item) {
+    if (event.pointerType === 'mouse') return;
+    pressStart = { x: event.clientX, y: event.clientY };
+    clearTimeout(pressTimer);
+    pressTimer = setTimeout(() => {
+      suppressClick = true;
+      openMenuAt(event.clientX, event.clientY, item);
+      navigator.vibrate?.(10);
+    }, 480);
+  }
+
+  function moveLongPress(event) {
+    if (!pressStart) return;
+    if (Math.hypot(event.clientX - pressStart.x, event.clientY - pressStart.y) > 10) cancelLongPress();
+  }
+
+  function cancelLongPress() {
+    clearTimeout(pressTimer);
+    pressTimer = null;
+    pressStart = null;
   }
 
   function menuAction(action) {
@@ -301,9 +524,150 @@
     if (action === 'rename') startRename(item);
     if (action === 'move') moveNode = item;
     if (action === 'download') window.location.href = `/api/v1/files/${item.id}/download`;
-    if (action === 'trash') trashItem(item);
+    if (action === 'trash') (selectedCount > 1 ? trashSelection() : trashItem(item));
     if (action === 'copy') copyNode(item);
     if (action === 'extract') openExtract(item);
+    if (action === 'zipDownload') downloadZip();
+    if (action === 'zipCreate') openZipCreate();
+  }
+
+  function copySelection() {
+    const nodes = selectionNodes();
+    if (!nodes.length) return;
+    clipboard.set({ mode: 'copy', ids: nodes.map((node) => node.id), names: nodes.map((node) => node.name) });
+    notify(`${nodes.length} ${nodes.length === 1 ? 'Element' : 'Elemente'} kopiert.`, 'info');
+  }
+
+  function cutSelection() {
+    const nodes = selectionNodes();
+    if (!nodes.length) return;
+    clipboard.set({ mode: 'cut', ids: nodes.map((node) => node.id), names: nodes.map((node) => node.name) });
+    notify(`${nodes.length} ${nodes.length === 1 ? 'Element' : 'Elemente'} ausgeschnitten.`, 'info');
+  }
+
+  async function pasteClipboard() {
+    const clip = readStore(clipboard);
+    if (!clip.ids.length) return;
+    try {
+      if (clip.mode === 'copy') {
+        for (const id of clip.ids) {
+          await post(`/api/v1/files/${id}/copy`, { parentId: folderId || null });
+        }
+        notify(`${clip.ids.length} ${clip.ids.length === 1 ? 'Element' : 'Elemente'} eingefügt.`, 'success');
+      } else {
+        await moveNodes(clip.ids, folderId || null);
+        clipboard.set({ mode: null, ids: [], names: [] });
+      }
+      refresh();
+    } catch (err) {
+      notify(err.message || 'Einfügen fehlgeschlagen.', 'error');
+    }
+  }
+
+  async function moveNodes(ids, parentId) {
+    const unique = [...new Set(ids)].filter(Boolean);
+    if (!unique.length) return;
+    let moved = 0;
+    let lastError = null;
+    for (const id of unique) {
+      try {
+        await patch(`/api/v1/files/${id}`, { parentId: parentId ?? null });
+        moved += 1;
+      } catch (err) { lastError = err; }
+    }
+    if (moved) {
+      notify(`${moved} ${moved === 1 ? 'Element' : 'Elemente'} verschoben.`, 'success');
+      resetSelection();
+      refresh();
+    }
+    if (lastError && moved < unique.length) {
+      notify(lastError.message || 'Einige Elemente konnten nicht verschoben werden.', 'error');
+    }
+  }
+
+  function undoTrash(stamp) {
+    return {
+      label: 'Rückgängig',
+      onClick: async () => {
+        try {
+          const result = await post('/api/v1/files/trash/restore', { stamp });
+          notify(`${(result.restored || 0).toLocaleString('de-DE')} ${result.restored === 1 ? 'Element' : 'Elemente'} wiederhergestellt.`, 'success');
+          refresh();
+        } catch (err) {
+          notify(err.message || 'Wiederherstellen fehlgeschlagen.', 'error');
+        }
+      },
+    };
+  }
+
+  function isInternalDrag(dataTransfer) {
+    return Boolean(dataTransfer?.types?.includes('application/x-onebox-nodes'));
+  }
+
+  function onInternalDragStart(event, item) {
+    const ids = selectionIdsForItem(item);
+    if (!isRowSelected(item)) selectOnly(item.id);
+    dragIds = ids;
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('application/x-onebox-nodes', JSON.stringify(ids));
+    event.dataTransfer.setData('text/plain', ids.join('\n'));
+  }
+
+  function onInternalDragEnd() {
+    dragIds = [];
+    dropTarget = null;
+  }
+
+  function onNodeDragOver(event, item) {
+    if (item.kind !== 'folder' || !isInternalDrag(event.dataTransfer)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = 'move';
+    dropTarget = item.id;
+  }
+
+  function onNodeDragLeave(event, item) {
+    if (dropTarget === item.id && !event.currentTarget.contains(event.relatedTarget)) dropTarget = null;
+  }
+
+  async function onNodeDrop(event, item) {
+    if (!isInternalDrag(event.dataTransfer)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    let ids = dragIds;
+    try {
+      const raw = event.dataTransfer.getData('application/x-onebox-nodes');
+      if (raw) ids = JSON.parse(raw);
+    } catch { /* Fallback auf dragIds */ }
+    dropTarget = null;
+    dragIds = [];
+    await moveNodes(ids.filter((id) => id !== item.id), item.id);
+  }
+
+  function onCrumbDragOver(event, targetId) {
+    if (!isInternalDrag(event.dataTransfer)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = 'move';
+    dropTarget = `crumb:${targetId || 'root'}`;
+  }
+
+  function onCrumbDragLeave(event, targetId) {
+    if (dropTarget === `crumb:${targetId || 'root'}` && !event.currentTarget.contains(event.relatedTarget)) dropTarget = null;
+  }
+
+  async function onCrumbDrop(event, targetId) {
+    if (!isInternalDrag(event.dataTransfer)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    let ids = dragIds;
+    try {
+      const raw = event.dataTransfer.getData('application/x-onebox-nodes');
+      if (raw) ids = JSON.parse(raw);
+    } catch { /* Fallback auf dragIds */ }
+    dropTarget = null;
+    dragIds = [];
+    await moveNodes(ids, targetId || null);
   }
 
   function startRename(item) {
@@ -359,7 +723,12 @@
         title: `${moved.toLocaleString('de-DE')} ${moved === 1 ? 'Element' : 'Elemente'} gelöscht`,
         detail: 'In den Papierkorb verschoben',
       });
-      notify(`${moved.toLocaleString('de-DE')} ${moved === 1 ? 'Element' : 'Elemente'} in den Papierkorb verschoben.`, 'success');
+      notify(
+        `${moved.toLocaleString('de-DE')} ${moved === 1 ? 'Element' : 'Elemente'} in den Papierkorb verschoben.`,
+        'success',
+        10000,
+        result.stamp ? undoTrash(result.stamp) : null,
+      );
       resetSelection();
       await load();
     } catch (err) {
@@ -387,9 +756,9 @@
       count: 1,
     });
     try {
-      await post('/api/v1/files/trash', { ids: [item.id] });
+      const result = await post('/api/v1/files/trash', { ids: [item.id] });
       finishJob(jobId, { title: 'Element gelöscht', detail: 'In den Papierkorb verschoben' });
-      notify('Element in den Papierkorb verschoben.', 'success');
+      notify('Element in den Papierkorb verschoben.', 'success', 10000, result.stamp ? undoTrash(result.stamp) : null);
       resetSelection();
       await load();
     } catch (err) {
@@ -679,12 +1048,14 @@
   }
 
   function onDragEnter(event) {
+    if (isInternalDrag(event.dataTransfer)) return;
     if (!event.dataTransfer?.types?.includes('Files')) return;
     dragDepth += 1;
     dragOver = true;
   }
 
-  function onDragLeave() {
+  function onDragLeave(event) {
+    if (isInternalDrag(event.dataTransfer)) return;
     dragDepth = Math.max(0, dragDepth - 1);
     if (!dragDepth) dragOver = false;
   }
@@ -693,7 +1064,7 @@
     event.preventDefault();
     dragDepth = 0;
     dragOver = false;
-    if (!event.dataTransfer) return;
+    if (!event.dataTransfer || isInternalDrag(event.dataTransfer)) return;
     const entries = await entriesFromDrop(event.dataTransfer);
     if (!entries.length) return;
     const hasTree = entries.some((entry) => entry.path.length > 0);
@@ -720,10 +1091,16 @@
   <header class="page-head">
     <div>
       <nav class="crumbs" aria-label="Pfad">
-        <a class="crumb" href="/files" data-route={folderId ? '' : undefined} aria-current={!folderId ? 'page' : undefined}>Meine Dateien</a>
+        <a class="crumb" class:is-drop={dropTarget === 'crumb:root'} href="/files" data-route={folderId ? '' : undefined} aria-current={!folderId ? 'page' : undefined}
+          on:dragover={(event) => onCrumbDragOver(event, null)}
+          on:dragleave={(event) => onCrumbDragLeave(event, null)}
+          on:drop={(event) => onCrumbDrop(event, null)}>Meine Dateien</a>
         {#each breadcrumbs as crumb}
           <span class="crumb-sep" aria-hidden="true"><Icon name="chevron-right" size={13} /></span>
-          <a class="crumb" href={`/files/${crumb.id}`} data-route aria-current={crumb.id === folderId ? 'page' : undefined}>{crumb.name}</a>
+          <a class="crumb" class:is-drop={dropTarget === `crumb:${crumb.id}`} href={`/files/${crumb.id}`} data-route aria-current={crumb.id === folderId ? 'page' : undefined}
+            on:dragover={(event) => onCrumbDragOver(event, crumb.id)}
+            on:dragleave={(event) => onCrumbDragLeave(event, crumb.id)}
+            on:drop={(event) => onCrumbDrop(event, crumb.id)}>{crumb.name}</a>
         {/each}
       </nav>
       <h1 style="margin-top:var(--space-2)">{folderId ? (breadcrumbs[breadcrumbs.length - 1]?.name || 'Ordner') : 'Dateien'}</h1>
@@ -740,7 +1117,7 @@
   <input class="sr-only" type="file" multiple webkitdirectory directory bind:this={folderUploadInput} on:change={onFolderUploads} />
 
   <div class="files-toolbar">
-    <select class="select" style="width:auto;min-height:2.25rem;font-size:var(--text-sm)" value={sort} on:change={(event) => { sort = event.target.value; dir = 'asc'; load(); }} aria-label="Sortieren nach">
+    <select class="select" style="width:auto;min-height:2.25rem;font-size:var(--text-sm)" value={sort} on:change={(event) => changeSort(event.target.value)} aria-label="Sortieren nach">
       <option value="name">Name</option>
       <option value="updatedAt">Geändert</option>
       <option value="size">Größe</option>
@@ -748,6 +1125,10 @@
     </select>
     <IconButton name={dir === 'asc' ? 'arrow-up' : 'arrow-down'} label={dir === 'asc' ? 'Aufsteigend' : 'Absteigend'} onclick={() => toggleSort(sort)} />
     <span class="grow"></span>
+    {#if $clipboard.ids.length}
+      <Button variant="quiet" size="sm" icon="clipboard-paste" onclick={pasteClipboard}>Einfügen ({$clipboard.ids.length})</Button>
+    {/if}
+    <IconButton name="circle-help" label="Tastaturkürzel anzeigen" onclick={() => (helpOpen = true)} />
     <IconButton name="folder-up" label="Ordner hochladen" onclick={chooseFolderUploads} />
     <span class="tag">{view === 'grid' ? 'Raster' : 'Liste'}</span>
     <div class="segmented" role="group" aria-label="Ansicht">
@@ -783,16 +1164,35 @@
         <button class="file-cell file-head" type="button" on:click={() => toggleSort('size')}>Größe {#if sort === 'size'}<Icon name={dir === 'asc' ? 'arrow-up' : 'arrow-down'} size={12} />{/if}</button>
         <span></span>
       </div>
-      {#each items as item (item.id)}
-        <div class="file-row" class:is-selected={isRowSelected(item)} role="row" tabindex="-1" on:contextmenu={(event) => showMenu(event, item)}>
+      {#each items as item, index (item.id)}
+        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_tabindex a11y_no_noninteractive_element_interactions -->
+        <div class="file-row" class:is-selected={isRowSelected(item)} class:is-focused={focusedId === item.id}
+          class:is-cut={$clipboard.mode === 'cut' && $clipboard.ids.includes(item.id)}
+          class:is-drop={dropTarget === item.id}
+          role="row" tabindex={focusedId === item.id ? 0 : -1}
+          bind:this={rowRefs[index]}
+          draggable="true"
+          on:focus={() => (focusedId = item.id)}
+          on:click={(event) => onItemClick(event, item, index)}
+          on:dblclick={() => openItem(item)}
+          on:contextmenu={(event) => showMenu(event, item)}
+          on:pointerdown={(event) => startLongPress(event, item)}
+          on:pointermove={moveLongPress}
+          on:pointerup={cancelLongPress}
+          on:pointercancel={cancelLongPress}
+          on:dragstart={(event) => onInternalDragStart(event, item)}
+          on:dragend={onInternalDragEnd}
+          on:dragover={(event) => onNodeDragOver(event, item)}
+          on:dragleave={(event) => onNodeDragLeave(event, item)}
+          on:drop={(event) => onNodeDrop(event, item)}>
           <span class="file-row__check"><input type="checkbox" checked={isRowSelected(item)} on:change={() => toggleSelect(item.id)} aria-label={`${item.name} auswählen`} /></span>
-          <button class="file-row__main" type="button" on:click={() => openItem(item)} on:dblclick={() => openItem(item)}>
+          <div class="file-row__main">
             <span class="file-icon file-icon--{fileKind(item)}" aria-hidden="true"><Icon name={fileKind(item) === 'folder' ? 'folder' : fileKind(item) === 'image' ? 'image' : fileKind(item) === 'video' ? 'play' : 'file'} size={18} /></span>
             <span style="min-width:0">
               <span class="file-name">{item.name}</span>
               <span class="file-sub">{itemSub(item)}</span>
             </span>
-          </button>
+          </div>
           <span class="file-cell">{dateTime(item.updatedAt)}</span>
           <span class="file-cell">{item.kind === 'folder' ? '—' : bytes(item.size)}</span>
           <span class="file-row__menu">
@@ -804,16 +1204,35 @@
     </div>
   {:else}
     <div class="file-grid" role="list" aria-label="Dateien">
-      {#each items as item (item.id)}
-        <div class="file-tile" role="listitem" class:is-selected={isRowSelected(item)} on:contextmenu={(event) => showMenu(event, item)}>
+      {#each items as item, index (item.id)}
+        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_tabindex a11y_no_noninteractive_element_interactions -->
+        <div class="file-tile" role="listitem" tabindex={focusedId === item.id ? 0 : -1}
+          class:is-selected={isRowSelected(item)} class:is-focused={focusedId === item.id}
+          class:is-cut={$clipboard.mode === 'cut' && $clipboard.ids.includes(item.id)}
+          class:is-drop={dropTarget === item.id}
+          bind:this={rowRefs[index]}
+          draggable="true"
+          on:focus={() => (focusedId = item.id)}
+          on:click={(event) => onItemClick(event, item, index)}
+          on:dblclick={() => openItem(item)}
+          on:contextmenu={(event) => showMenu(event, item)}
+          on:pointerdown={(event) => startLongPress(event, item)}
+          on:pointermove={moveLongPress}
+          on:pointerup={cancelLongPress}
+          on:pointercancel={cancelLongPress}
+          on:dragstart={(event) => onInternalDragStart(event, item)}
+          on:dragend={onInternalDragEnd}
+          on:dragover={(event) => onNodeDragOver(event, item)}
+          on:dragleave={(event) => onNodeDragLeave(event, item)}
+          on:drop={(event) => onNodeDrop(event, item)}>
           <label class="file-tile__check"><input type="checkbox" checked={isRowSelected(item)} on:change={() => toggleSelect(item.id)} aria-label={`${item.name} auswählen`} /></label>
-          <button type="button" class="file-tile__preview" on:click={() => openItem(item)} on:dblclick={() => openItem(item)} aria-label={`${item.name} öffnen`}>
+          <div class="file-tile__preview">
             {#if fileKind(item) === 'image'}
               <img src={`/api/v1/files/${item.id}/thumbnail?size=320`} alt="" loading="lazy" />
             {:else}
               <span class="file-icon file-icon--{fileKind(item)}"><Icon name={fileKind(item) === 'folder' ? 'folder' : fileKind(item) === 'video' ? 'play' : 'file'} size={28} /></span>
             {/if}
-          </button>
+          </div>
           <div class="file-tile__body">
             <span class="file-tile__name" title={item.name}>{item.name}</span>
             <IconButton name="ellipsis" label={`Aktionen für ${item.name}`} onclick={(event) => showMenu(event, item)} />
@@ -871,22 +1290,46 @@
 </div>
 
 {#if menu.open}
-  <div class="menu-pop" style="position:fixed;left:{menu.x}px;top:{menu.y}px;z-index:70" role="menu" aria-label="Dateiaktionen">
-    <button class="menu-item" role="menuitem" on:click={() => menuAction('open')}><Icon name="external-link" size={16} />{menu.item?.kind === 'folder' ? 'Öffnen' : 'Vorschau'}</button>
+  <div class="menu-pop" class:menu-pop--sheet={menuSheet} style={menuSheet ? '' : `position:fixed;left:${menu.x}px;top:${menu.y}px;z-index:70`} role="menu" aria-label="Dateiaktionen">
+    {#if menuSheet}<div class="menu-sheet-handle" aria-hidden="true"></div>{/if}
+    <button class="menu-item" role="menuitem" on:click={() => menuAction('open')}><Icon name={menu.item?.kind === 'folder' ? 'folder-open' : 'external-link'} size={16} />{menu.item?.kind === 'folder' ? 'Öffnen' : 'Vorschau'}</button>
     {#if menu.item?.kind === 'file'}
       <button class="menu-item" role="menuitem" on:click={() => menuAction('download')}><Icon name="download" size={16} />Herunterladen</button>
     {/if}
     {#if isZip(menu.item)}
       <button class="menu-item" role="menuitem" on:click={() => menuAction('extract')}><Icon name="package-open" size={16} />Entpacken</button>
     {/if}
-    <button class="menu-item" role="menuitem" on:click={() => menuAction('share')}><Icon name="link" size={16} />Teilen</button>
-    <button class="menu-item" role="menuitem" on:click={() => menuAction('rename')}><Icon name="pencil" size={16} />Umbenennen</button>
-    <button class="menu-item" role="menuitem" on:click={() => menuAction('move')}><Icon name="folder-input" size={16} />Verschieben</button>
-    <button class="menu-item" role="menuitem" on:click={() => menuAction('copy')}><Icon name="copy" size={16} />Kopie erstellen</button>
     <div class="menu-sep"></div>
-    <button class="menu-item menu-item--danger" role="menuitem" on:click={() => menuAction('trash')}><Icon name="trash-2" size={16} />In den Papierkorb</button>
+    <button class="menu-item" role="menuitem" on:click={() => menuAction('zipDownload')}><Icon name="file-archive" size={16} />Als ZIP herunterladen</button>
+    <button class="menu-item" role="menuitem" on:click={() => menuAction('zipCreate')}><Icon name="folder-archive" size={16} />ZIP erstellen</button>
+    <div class="menu-sep"></div>
+    {#if selectedCount <= 1}
+      <button class="menu-item" role="menuitem" on:click={() => menuAction('share')}><Icon name="link" size={16} />Teilen</button>
+      <button class="menu-item" role="menuitem" on:click={() => menuAction('rename')}><Icon name="pencil" size={16} />Umbenennen</button>
+      <button class="menu-item" role="menuitem" on:click={() => menuAction('move')}><Icon name="folder-input" size={16} />Verschieben</button>
+      <button class="menu-item" role="menuitem" on:click={() => menuAction('copy')}><Icon name="copy" size={16} />Kopie erstellen</button>
+      <div class="menu-sep"></div>
+    {/if}
+    <button class="menu-item menu-item--danger" role="menuitem" on:click={() => menuAction('trash')}><Icon name="trash-2" size={16} />{selectedCount > 1 ? `${selectedCount} Elemente löschen` : 'In den Papierkorb'}</button>
   </div>
 {/if}
+
+<Dialog open={helpOpen} title="Tastaturkürzel" description="Der Dateibereich lässt sich vollständig ohne Maus bedienen." size="sm" onclose={() => (helpOpen = false)}>
+  <div class="shortcut-list">
+    {#each SHORTCUTS as shortcut (shortcut.label)}
+      <div class="shortcut-row">
+        <span>{shortcut.label}</span>
+        <span class="shortcut-keys">
+          {#each shortcut.keys as key (key)}<kbd>{key}</kbd>{/each}
+        </span>
+      </div>
+    {/each}
+  </div>
+  <p class="stat-foot" style="margin-top:var(--space-4)">Tipp: Rechtsklick oder langes Tippen öffnet das Kontextmenü. Dateien lassen sich auf Ordner und Breadcrumbs ziehen.</p>
+  <svelte:fragment slot="footer">
+    <Button variant="primary" onclick={() => (helpOpen = false)}>Verstanden</Button>
+  </svelte:fragment>
+</Dialog>
 
 <Dialog open={createOpen} title="Neuer Ordner" description="Ordner helfen, Dateien an einem Ort zu bündeln." size="sm" onclose={() => (createOpen = false)}>
   <Field label="Name" id="new-folder" required>

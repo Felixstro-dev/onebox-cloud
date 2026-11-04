@@ -65,7 +65,11 @@
     };
     window.addEventListener('onebox:unauthorized', unauthorized);
     const onKey = (event) => {
+      const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target?.tagName) || event.target?.isContentEditable;
       if (event.key === 'k' && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        document.querySelector('#global-search')?.focus();
+      } else if (event.key === '/' && !typing && !event.metaKey && !event.ctrlKey && !event.altKey) {
         event.preventDefault();
         document.querySelector('#global-search')?.focus();
       }

@@ -1,5 +1,5 @@
 <script>
-  import { toasts, dismiss } from '../lib/stores.js';
+  import { toasts, dismiss, runToastAction } from '../lib/stores.js';
   import Icon from './Icon.svelte';
   const icons = { success: 'circle-check', error: 'circle-alert', warning: 'triangle-alert', info: 'info' };
 </script>
@@ -9,6 +9,9 @@
     <div class="toast toast--app" data-kind={toast.kind}>
       <Icon name={icons[toast.kind] || 'info'} size={18} />
       <p>{toast.message}</p>
+      {#if toast.action}
+        <button type="button" class="toast__action" on:click={() => runToastAction(toast)}>{toast.action.label}</button>
+      {/if}
       <button type="button" class="toast__close" aria-label="Hinweis schließen" on:click={() => dismiss(toast.id)}>
         <Icon name="x" size={15} />
       </button>
