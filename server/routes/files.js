@@ -76,6 +76,10 @@ export function sendFile(reply, node, { inline = false, rangeHeader = null } = {
     'X-Content-Type-Options': 'nosniff',
     'Cross-Origin-Resource-Policy': 'same-origin',
   };
+  if (serveInline && node.mime === 'application/pdf') {
+    // PDFs werden nur im Sandbox-Kontext gerendert.
+    base['Content-Security-Policy'] = "sandbox; default-src 'none'; style-src 'unsafe-inline'";
+  }
   if (range?.invalid) {
     return reply.status(416).header('Content-Range', `bytes */${size}`).send();
   }
@@ -270,11 +274,14 @@ export async function registerFileRoutes(app) {
   app.get('/api/v1/files/:id/thumbnail', async (req, reply) => {
     const user = requireUser(req);
     const node = getNode(req.params.id, user.id);
-    if (node.kind !== 'file' || !isImage(node.mime)) throw notFound('No thumbnail for this file.');
+    const isPdf = node.mime === 'application/pdf';
+    if (node.kind !== 'file' || (!isImage(node.mime) && !isPdf)) throw notFound('No thumbnail for this file.');
     const size = [320, 768, 1600].includes(Number(req.query.size)) ? Number(req.query.size) : 768;
     try {
       const file = await thumbnails.ensure(node, size);
+      if (!file) throw notFound('Thumbnail is not ready.');
       reply.header('Cache-Control', 'private, max-age=86400');
+      reply.header('X-Content-Type-Options', 'nosniff');
       reply.type('image/webp');
       return reply.send(fs.createReadStream(file));
     } catch {

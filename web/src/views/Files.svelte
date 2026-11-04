@@ -1227,8 +1227,9 @@
           on:drop={(event) => onNodeDrop(event, item)}>
           <label class="file-tile__check"><input type="checkbox" checked={isRowSelected(item)} on:change={() => toggleSelect(item.id)} aria-label={`${item.name} auswählen`} /></label>
           <div class="file-tile__preview">
-            {#if fileKind(item) === 'image'}
-              <img src={`/api/v1/files/${item.id}/thumbnail?size=320`} alt="" loading="lazy" />
+            {#if fileKind(item) === 'image' || fileKind(item) === 'pdf'}
+              <span class="file-icon file-icon--{fileKind(item)}"><Icon name={fileKind(item) === 'pdf' ? 'file-text' : 'image'} size={28} /></span>
+              <img class="file-tile__img" src={`/api/v1/files/${item.id}/thumbnail?size=320`} alt="" loading="lazy" on:error={(event) => { event.currentTarget.style.display = 'none'; }} />
             {:else}
               <span class="file-icon file-icon--{fileKind(item)}"><Icon name={fileKind(item) === 'folder' ? 'folder' : fileKind(item) === 'video' ? 'play' : 'file'} size={28} /></span>
             {/if}

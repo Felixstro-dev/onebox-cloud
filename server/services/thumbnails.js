@@ -109,14 +109,30 @@ export class ThumbnailService {
     const target = this.file(node.id, size);
     if (fs.existsSync(target)) return target;
     if (!node.hash) return null;
+    const isPdf = node.mime === 'application/pdf';
+    const failedMarker = path.join(this.dir(node.id), `${size}.failed`);
+    if (isPdf && fs.existsSync(failedMarker)) {
+      const stat = fs.statSync(failedMarker);
+      // Fehlgeschlagene PDF-Renderings eine Stunde nicht erneut versuchen.
+      if (Date.now() - stat.mtimeMs < 60 * 60 * 1000) return null;
+    }
     const key = `${node.id}:${size}`;
     if (this.inflight.has(key)) return this.inflight.get(key);
-    const promise = this.queue.add(() => this.pool.run({ file: objectPath(node.hash), outputDir: this.dir(node.id), size }))
+    const promise = this.queue.add(() => this.pool.run({
+      file: objectPath(node.hash), outputDir: this.dir(node.id), size, kind: isPdf ? 'pdf' : 'image',
+    }))
       .then(async (result) => {
         if (result.meta?.width && !node.width) {
           db.update(schema.nodes).set({ width: result.meta.width, height: result.meta.height, takenAt: node.takenAt || result.meta.takenAt || null }).where(eq(schema.nodes.id, node.id)).run();
         }
         return result.output;
+      })
+      .catch((error) => {
+        if (isPdf) {
+          fs.mkdirSync(this.dir(node.id), { recursive: true });
+          fs.writeFileSync(failedMarker, String(Date.now()));
+        }
+        throw error;
       })
       .finally(() => this.inflight.delete(key));
     this.inflight.set(key, promise);

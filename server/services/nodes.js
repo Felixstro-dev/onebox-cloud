@@ -500,9 +500,10 @@ export function toClient(row) {
     trashedAt: row.trashedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-    thumbUrl: row.kind === 'file' && isImage(row.mime) ? `/api/v1/files/${row.id}/thumbnail` : null,
+    thumbUrl: row.kind === 'file' && (isImage(row.mime) || row.mime === 'application/pdf') ? `/api/v1/files/${row.id}/thumbnail` : null,
     downloadUrl: row.kind === 'file' ? `/api/v1/files/${row.id}/download` : null,
     isImage: row.kind === 'file' && isImage(row.mime),
+    isPdf: row.kind === 'file' && row.mime === 'application/pdf',
     isVideo: row.kind === 'file' && row.mime.startsWith('video/'),
   };
 }

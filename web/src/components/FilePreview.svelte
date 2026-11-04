@@ -5,10 +5,10 @@
   import IconButton from './IconButton.svelte';
   import Icon from './Icon.svelte';
   import Button from './Button.svelte';
+  import PdfViewer from './PdfViewer.svelte';
 
   export let node = null;
   export let onclose = () => {};
-  let content = '';
   let textBody = '';
   let loadingText = false;
   let copied = false;
@@ -58,7 +58,7 @@
       <Button variant="secondary" size="sm" icon="download" href={`${contentUrl}?download=1`}>Herunterladen</Button>
       <IconButton name="x" label="Vorschau schließen" onclick={onclose} />
     </div>
-    <div class="viewer__stage">
+    <div class="viewer__stage" class:viewer__stage--pdf={kind === 'pdf'}>
       {#if kind === 'image'}
         <img src={contentUrl} alt={node.name} />
       {:else if kind === 'video'}
@@ -69,7 +69,9 @@
           <audio src={contentUrl} controls style="width:100%"></audio>
         </div>
       {:else if kind === 'pdf'}
-        <iframe src={contentUrl} title={node.name} class="preview-frame"></iframe>
+        {#key node.id}
+          <PdfViewer {node} {contentUrl} {onclose} />
+        {/key}
       {:else if kind === 'text'}
         <pre class="text-preview">{loadingText ? 'Wird geladen …' : textBody}</pre>
       {:else}
