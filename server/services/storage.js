@@ -8,6 +8,19 @@ import { config, paths } from '../config.js';
 import { id } from '../lib/ids.js';
 import { safeJoin } from '../lib/paths.js';
 
+// Aktiver Speicher (Root). Kann zur Laufzeit über die Admin-API auf einen
+// anderen Datenträger umgeschaltet werden; Uploads und Objekte landen dann
+// im gewählten Ordner.
+let activeRoot = config.filesDir;
+
+export function setActiveStorageRoot(root) {
+  activeRoot = path.resolve(String(root || ''));
+}
+
+export function storageRoot() {
+  return activeRoot;
+}
+
 export function tempPath(sessionId) {
   const safeId = String(sessionId).replace(/[^a-z0-9-]/gi, '');
   if (!safeId) throw new Error('Invalid upload session id.');
@@ -16,7 +29,7 @@ export function tempPath(sessionId) {
 
 export function objectPath(hash) {
   if (!/^[a-f0-9]{64}$/i.test(String(hash))) throw new Error('Invalid object key.');
-  return safeJoin(config.filesDir, 'objects', String(hash).slice(0, 2), String(hash));
+  return safeJoin(storageRoot(), 'objects', String(hash).slice(0, 2), String(hash));
 }
 
 export async function prepareUpload(size) {
@@ -97,7 +110,7 @@ export async function copyObject(hash) {
 
 export async function diskStats() {
   try {
-    const stat = await fsp.statfs(config.filesDir);
+    const stat = await fsp.statfs(storageRoot());
     const total = stat.blocks * stat.bsize;
     const free = stat.bavail * stat.bsize;
     return { total, free, used: total - free };

@@ -34,6 +34,7 @@ export async function api(method, path, body = undefined, { access = null, raw =
 export const get = (path, opts) => api('GET', path, undefined, opts);
 export const post = (path, body, opts) => api('POST', path, body, opts);
 export const patch = (path, body, opts) => api('PATCH', path, body, opts);
+export const put = (path, body, opts) => api('PUT', path, body, opts);
 export const del = (path, opts) => api('DELETE', path, undefined, opts);
 
 export function createUpload({ name, size, mime, parentId, sessionId }) {

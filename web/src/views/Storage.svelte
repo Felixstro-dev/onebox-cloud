@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { get } from '../lib/api.js';
+  import { get, put } from '../lib/api.js';
   import { user } from '../lib/stores.js';
   import { bytes } from '../lib/format.js';
   import Icon from '../components/Icon.svelte';
@@ -9,6 +9,8 @@
 
   let storage = null;
   let overview = null;
+  let locations = [];
+  let selectedLocationId = '';
   let loading = true;
   let failed = '';
 
@@ -19,8 +21,17 @@
     failed = '';
     try {
       storage = await get('/api/v1/storage');
+      locations = (await get('/api/v1/storage/locations')).locations || [];
+      if (selectedLocationId && !locations.some((location) => location.id === selectedLocationId)) selectedLocationId = locations[0]?.id || '';
       if ($user?.role === 'admin') overview = await get('/api/v1/storage/overview');
     } catch (err) { failed = err.message; } finally { loading = false; }
+  }
+
+  async function selectStorage() {
+    const location = locations.find((entry) => entry.id === selectedLocationId) || locations[0];
+    if (!location) return;
+    await put(`/api/v1/storage/locations/${location.id}`, { isDefault: true });
+    storage = await get('/api/v1/storage');
   }
 
   const family = {
@@ -139,6 +150,28 @@
               {/each}
             </tbody>
           </table>
+        </div>
+      </section>
+    {/if}
+
+    {#if overview}
+      <section class="section" aria-labelledby="storage-title">
+        <div class="section-head"><h2 id="storage-title">Speicher</h2><span class="tag">Administratoransicht</span></div>
+        <div class="card storage-card">
+          <div class="card-head"><h3>Speicher festlegen</h3><Icon name="hard-drive" size={17} /></div>
+          {#if locations.length}
+            <div class="input-group">
+              <select class="select" bind:value={selectedLocationId} aria-label="Speicher für Uploads auswählen">
+                {#each locations as location (location.id)}
+                  <option value={location.id}>{location.name} · {location.rootPath}</option>
+                {/each}
+              </select>
+              <button class="btn btn--primary" type="button" onclick={selectStorage}>Als Speicher verwenden</button>
+            </div>
+          {:else}
+            <p class="stat-foot">Keine Speicherorte hinterlegt.</p>
+          {/if}
+          <p class="stat-foot">Uploads landen nach der Auswahl im gewählten Datenträger. Der Papierkorb und Objekte des bisherigen Speichers bleiben dort erhalten.</p>
         </div>
       </section>
     {/if}
