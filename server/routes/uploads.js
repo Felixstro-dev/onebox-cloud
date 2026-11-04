@@ -5,6 +5,7 @@ import { requireUser } from '../services/auth.js';
 import { badRequest, conflict, notFound, tooLarge } from '../lib/errors.js';
 import { createFile, getNode, activity, assertQuota, findChildByName, toClient, trashRows } from '../services/nodes.js';
 import { prepareUpload, tempPath, writeChunk } from '../services/storage.js';
+import { resolveUploadMime } from '../services/content-type.js';
 import { mimeOf, cleanName } from '../lib/names.js';
 import { thumbnails } from '../services/runtime.js';
 import { config } from '../config.js';
@@ -158,8 +159,8 @@ export async function registerUploadRoutes(app) {
     if (!Number.isFinite(offset) || offset !== row.offset) throw conflict(`Upload offset mismatch. Server has ${row.offset}.`);
     if (offset >= row.size && row.size > 0) throw badRequest('Upload is already complete.');
     if (!req.body || typeof req.body.pipe !== 'function') throw badRequest('Expected an octet stream.');
-    const bytesWritten = await writeChunk(row.tempKey, offset, req.body);
-    const next = Math.min(offset + bytesWritten, row.size);
+    const bytesWritten = await writeChunk(row.tempKey, offset, req.body, Math.max(0, row.size - offset));
+    const next = offset + bytesWritten;
     if (next > row.size) throw tooLarge('Upload is larger than announced.');
     db.update(schema.uploadSessions).set({ offset: next, updatedAt: Date.now() }).where(eq(schema.uploadSessions.id, row.id)).run();
     reply.header('Upload-Offset', next);
@@ -190,7 +191,8 @@ export async function registerUploadRoutes(app) {
     if (existing && conflictMode === 'replace') {
       trashRows(user.id, [existing]);
     }
-    const node = await createFile({ user, parentId: row.parentId, name: row.name, mime: row.mime, tempFile: row.tempKey });
+    const mime = await resolveUploadMime(row.tempKey, row.mime, row.name);
+    const node = await createFile({ user, parentId: row.parentId, name: row.name, mime, tempFile: row.tempKey });
     db.delete(schema.uploadSessions).where(eq(schema.uploadSessions.id, row.id)).run();
     activity(user.id, 'file.upload', 'node', node.id, `${node.name} (${size} bytes)`, req.ip);
     // Thumbnails und Metadaten laufen in der Hintergrund-Queue, nicht im Request.

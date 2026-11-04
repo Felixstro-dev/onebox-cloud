@@ -90,7 +90,7 @@ test('Resumable Uploads: tus-Semantik, Offset, Konflikte und Limits', async (t) 
   });
 
   await t.test('meldet Namenskonflikte und kann überspringen', async () => {
-    const first = await create('doppelt.txt', 3);
+    const first = await create('doppelt.txt', 4);
     const firstId = first.json().upload.id;
     await chunk(firstId, 0, 'eins');
     await app.inject({ method: 'POST', url: `/api/v1/uploads/${firstId}/complete`, headers: headers(), payload: {} });

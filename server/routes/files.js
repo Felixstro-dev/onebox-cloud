@@ -11,7 +11,8 @@ import {
 import { badRequest, notFound } from '../lib/errors.js';
 import { objectPath, readObject, commitObject, tempPath, hashFile, fileSize } from '../services/storage.js';
 import crypto from 'node:crypto';
-import { safeInlineMime, isImage } from '../lib/names.js';
+import { isImage, canInline } from '../lib/names.js';
+import { assertSafeName, safeSegments } from '../lib/paths.js';
 import { thumbnails } from '../services/runtime.js';
 
 const MAX_RANGE_CHUNK = 8 * 1024 * 1024;
@@ -62,13 +63,18 @@ export function sendFile(reply, node, { inline = false, rangeHeader = null } = {
   if (!fs.existsSync(file)) throw notFound('File content is missing on disk.');
   const size = node.size;
   const range = parseRange(rangeHeader, size);
+  // Inline nur für eine sichere Whitelist. Alles andere – insbesondere SVG
+  // und HTML – wird immer als Download ausgeliefert.
+  const serveInline = inline && canInline(node.mime);
+  const type = serveInline ? node.mime : (node.mime === 'text/html' || node.mime === 'image/svg+xml' ? 'application/octet-stream' : node.mime);
   const base = {
-    'Content-Type': inline ? safeInlineMime(node.mime) : (node.mime === 'text/html' || node.mime === 'image/svg+xml' ? 'application/octet-stream' : node.mime),
-    'Content-Disposition': contentDisposition(node.name, inline),
-    'Cache-Control': inline ? 'private, max-age=3600' : 'private, no-store',
+    'Content-Type': type,
+    'Content-Disposition': contentDisposition(node.name, serveInline),
+    'Cache-Control': serveInline ? 'private, max-age=3600' : 'private, no-store',
     'Accept-Ranges': 'bytes',
     'Last-Modified': new Date(node.updatedAt).toUTCString(),
     'X-Content-Type-Options': 'nosniff',
+    'Cross-Origin-Resource-Policy': 'same-origin',
   };
   if (range?.invalid) {
     return reply.status(416).header('Content-Range', `bytes */${size}`).send();
@@ -142,7 +148,8 @@ export async function registerFileRoutes(app) {
     },
   }, async (req) => {
     const user = requireUser(req);
-    const folder = createFolder(user.id, req.body.parentId || null, req.body.name);
+    const name = assertSafeName(req.body.name, 'Ordnername');
+    const folder = createFolder(user.id, req.body.parentId || null, name);
     activity(user.id, 'folder.create', 'node', folder.id, folder.name, req.ip);
     return { node: folder };
   });
@@ -166,7 +173,7 @@ export async function registerFileRoutes(app) {
   }, async (req) => {
     const user = requireUser(req);
     let node;
-    if (req.body.name !== undefined) node = renameNode(user.id, req.params.id, req.body.name);
+    if (req.body.name !== undefined) node = renameNode(user.id, req.params.id, assertSafeName(req.body.name, 'Dateiname'));
     if (req.body.parentId !== undefined) node = moveNode(user.id, req.params.id, req.body.parentId || null);
     if (!node) throw badRequest('Nothing to change.');
     activity(user.id, 'node.update', 'node', node.id, node.name, req.ip);
@@ -285,7 +292,7 @@ export async function registerFileRoutes(app) {
     schema: { body: { type: 'object', required: ['path'], properties: { path: { type: 'string' } } } },
   }, async (req) => {
     const user = requireUser(req);
-    const parts = String(req.body.path).split('/').filter(Boolean);
+    const parts = safeSegments(req.body.path, 'Pfad');
     const folderId = resolvePath(user.id, parts);
     return { folderId };
   });

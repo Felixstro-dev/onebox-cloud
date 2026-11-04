@@ -1,12 +1,7 @@
-const invalid = /[\u0000-\u001f\u007f/\\]/;
+import { sanitizeName } from './paths.js';
 
 export function cleanName(value, fallback = 'Untitled') {
-  if (typeof value !== 'string') return fallback;
-  let name = value.normalize('NFC').trim();
-  if (!name) return fallback;
-  name = name.replace(invalid, ' ').replace(/\s+/g, ' ').slice(0, 255).trim();
-  if (name === '.' || name === '..') return fallback;
-  return name;
+  return sanitizeName(value, fallback);
 }
 
 export function nameKey(name) {
@@ -36,12 +31,24 @@ export function mimeOf(name) {
 }
 
 export function isImage(mime) {
-  return typeof mime === 'string' && mime.startsWith('image/');
+  return typeof mime === 'string' && mime.startsWith('image/') && mime !== 'image/svg+xml';
+}
+
+// Inline-Auslieferung nur für Typen, die im Browser keinen Code im
+// Hauptorigin ausführen können. SVG und HTML sind bewusst nicht enthalten.
+const INLINE_MIME = new Set([
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif', 'image/heic', 'image/heif',
+  'application/pdf',
+  'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/mp4', 'audio/webm',
+  'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime',
+]);
+
+export function canInline(mime) {
+  return INLINE_MIME.has(mime);
 }
 
 export function safeInlineMime(mime) {
-  const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif', 'application/pdf', 'text/plain', 'video/mp4', 'video/webm']);
-  return allowed.has(mime) ? mime : 'application/octet-stream';
+  return canInline(mime) ? mime : 'application/octet-stream';
 }
 
 export function formatBytes(bytes) {

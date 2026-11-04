@@ -10,6 +10,7 @@ import { db, schema, sqlite } from '../db/index.js';
 import { id } from '../lib/ids.js';
 import { badRequest, notFound, tooLarge } from '../lib/errors.js';
 import { cleanName, mimeOf, nameKey, extOf } from '../lib/names.js';
+import { safeSegments } from '../lib/paths.js';
 import {
   activity, assertQuota, createFile, createFolder, getNode, quotaFor, selectionRows,
   uniqueName, usedBytes,
@@ -313,12 +314,8 @@ function readZipEntries(zipfile) {
 function safeEntryName(entry) {
   const raw = String(entry.fileName || '');
   if (!raw || raw.includes('\u0000')) throw badRequest('Ungültiger Dateiname im ZIP.');
-  if (raw.includes('\\') || raw.startsWith('/') || /^[A-Za-z]:/.test(raw)) {
-    throw badRequest(`Unsicherer Pfad im ZIP: ${raw}`);
-  }
-  const parts = raw.split('/');
-  if (parts.some((part) => part === '..')) throw badRequest(`Unsicherer Pfad im ZIP: ${raw}`);
-  return parts.filter((part) => part && part !== '.').join('/');
+  if (raw.includes('\\')) throw badRequest(`Unsicherer Pfad im ZIP: ${raw}`);
+  return safeSegments(raw, 'ZIP-Pfad').join('/');
 }
 
 function validateZip(entries) {

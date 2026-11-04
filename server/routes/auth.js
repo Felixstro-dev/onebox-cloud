@@ -2,9 +2,14 @@ import { eq, sql } from 'drizzle-orm';
 import { db, schema } from '../db/index.js';
 import { badRequest, unauthorized } from '../lib/errors.js';
 import {
-  COOKIE, createSession, destroySession, hashPassword, isAccountLocked, rateLimit, recordFailedLogin,
-  requireUser, resetAccountLock, resetRateLimit, userCount, verifyPassword,
+  COOKIE, accountLockSeconds, clearTwoFactorChallenge, createSession, createTwoFactorChallenge,
+  destroySession, failTwoFactorChallenge, getTwoFactorChallenge, hashPassword, isAccountLocked,
+  listSessions, rateLimit, recordFailedLogin, requireUser, resetAccountLock, resetRateLimit,
+  revokeSession, userCount, verifyLoginPassword, verifyPassword,
 } from '../services/auth.js';
+import {
+  generateSecret, hashRecoveryCode, matchRecoveryCode, otpauthUrl, recoveryCode, verifyTotp,
+} from '../lib/totp.js';
 import { config } from '../config.js';
 import { usedBytes, quotaFor, activity } from '../services/nodes.js';
 import { getAllSettings } from '../services/settings.js';
@@ -28,6 +33,7 @@ function publicUser(user) {
     usedBytes: usedBytes(user.id),
     createdAt: user.createdAt,
     lastLoginAt: user.lastLoginAt,
+    twoFactorEnabled: Boolean(user.totpEnabled),
   };
 }
 
@@ -64,6 +70,7 @@ export async function registerAuthRoutes(app) {
   });
 
   app.post('/api/v1/auth/login', {
+    config: { rateLimit: { max: 30, timeWindow: '5 minutes', keyGenerator: (req) => `login:${req.ip}` } },
     schema: {
       body: {
         type: 'object', required: ['username', 'password'],
@@ -71,25 +78,84 @@ export async function registerAuthRoutes(app) {
       },
     },
   }, async (req, reply) => {
-    const key = `${req.ip}:${req.body.username.toLowerCase()}`;
-    if (isAccountLocked(req.body.username)) {
-      return reply.status(429).send({ error: { code: 'account_locked', message: 'Konto gesperrt. Versuche es in 15 Minuten erneut.' } });
+    const username = String(req.body.username || '');
+    const key = `${req.ip}:${username.toLowerCase()}`;
+    if (isAccountLocked(username)) {
+      const retryAfter = accountLockSeconds(username);
+      return reply.status(429).header('Retry-After', retryAfter).send({
+        error: { code: 'invalid_credentials', message: 'Anmeldung fehlgeschlagen. Bitte später erneut versuchen.', retryAfter },
+      });
     }
     if (!rateLimit(key, { max: 8, windowMs: 300000 })) {
-      return reply.status(429).send({ error: { code: 'rate_limited', message: 'Too many sign-in attempts. Wait five minutes.' } });
+      return reply.status(429).send({ error: { code: 'rate_limited', message: 'Zu viele Anmeldeversuche. Bitte fünf Minuten warten.' } });
     }
-    const user = db.select().from(schema.users).where(sql`lower(${schema.users.username}) = ${req.body.username.toLowerCase()}`).get();
-    if (!user || user.disabled || !(await verifyPassword(user.passwordHash, req.body.password))) {
-      recordFailedLogin(req.body.username);
-      return reply.status(401).send({ error: { code: 'invalid_credentials', message: 'Username or password is wrong.' } });
+    const user = db.select().from(schema.users).where(sql`lower(${schema.users.username}) = ${username.toLowerCase()}`).get();
+    const passwordOk = await verifyLoginPassword(user, req.body.password);
+    if (!user || user.disabled || !passwordOk) {
+      recordFailedLogin(username);
+      activity(user?.id || null, 'auth.login.failed', 'user', user?.id || null, username.slice(0, 64), req.ip);
+      // Bewusst identische Antwort für unbekannten Nutzer und falsches Passwort.
+      return reply.status(401).send({ error: { code: 'invalid_credentials', message: 'Benutzername oder Passwort ist falsch.' } });
+    }
+    if (user.totpEnabled) {
+      const { challenge, expiresIn } = createTwoFactorChallenge(user.id);
+      return { twoFactorRequired: true, challengeToken: challenge, expiresIn };
     }
     resetRateLimit(key);
-    resetAccountLock(req.body.username);
+    resetAccountLock(username);
     db.update(schema.users).set({ lastLoginAt: Date.now() }).where(eq(schema.users.id, user.id)).run();
     const session = createSession(user.id, req);
     reply.setCookie(COOKIE, session.token, cookieOptions);
     activity(user.id, 'auth.login', 'user', user.id, null, req.ip);
     return { user: publicUser({ ...user, lastLoginAt: Date.now() }) };
+  });
+
+  app.post('/api/v1/auth/2fa/verify', {
+    config: { rateLimit: { max: 20, timeWindow: '5 minutes', keyGenerator: (req) => `2fa:${req.ip}` } },
+    schema: {
+      body: {
+        type: 'object', required: ['challengeToken', 'code'],
+        properties: { challengeToken: { type: 'string', maxLength: 128 }, code: { type: 'string', maxLength: 32 } },
+      },
+    },
+  }, async (req, reply) => {
+    const entry = getTwoFactorChallenge(req.body.challengeToken);
+    if (!entry) throw unauthorized('Die Anmeldung ist abgelaufen. Bitte erneut anmelden.');
+    const user = db.select().from(schema.users).where(eq(schema.users.id, entry.userId)).get();
+    if (!user || user.disabled || !user.totpEnabled || !user.totpSecret) {
+      clearTwoFactorChallenge(req.body.challengeToken);
+      throw unauthorized('Die Zwei-Faktor-Anmeldung ist nicht verfügbar.');
+    }
+    const code = String(req.body.code || '').trim();
+    let matchedRecovery = null;
+    let counter = null;
+    if (/^\d{6}$/.test(code)) {
+      counter = verifyTotp(user.totpSecret, code);
+      if (counter !== null && user.totpLastCounter && counter <= user.totpLastCounter) counter = null;
+    } else {
+      const hashes = JSON.parse(user.recoveryCodes || '[]');
+      matchedRecovery = matchRecoveryCode(code, hashes);
+    }
+    if (counter === null && !matchedRecovery) {
+      failTwoFactorChallenge(req.body.challengeToken);
+      recordFailedLogin(user.username);
+      activity(user.id, 'auth.2fa.failed', 'user', user.id, null, req.ip);
+      return reply.status(401).send({ error: { code: 'invalid_code', message: 'Der Code ist falsch oder abgelaufen.' } });
+    }
+    if (matchedRecovery) {
+      const hashes = JSON.parse(user.recoveryCodes || '[]').filter((hash) => hash !== matchedRecovery);
+      db.update(schema.users).set({ recoveryCodes: JSON.stringify(hashes) }).where(eq(schema.users.id, user.id)).run();
+    } else {
+      db.update(schema.users).set({ totpLastCounter: counter }).where(eq(schema.users.id, user.id)).run();
+    }
+    clearTwoFactorChallenge(req.body.challengeToken);
+    resetAccountLock(user.username);
+    db.update(schema.users).set({ lastLoginAt: Date.now() }).where(eq(schema.users.id, user.id)).run();
+    const session = createSession(user.id, req);
+    reply.setCookie(COOKIE, session.token, cookieOptions);
+    activity(user.id, 'auth.login', 'user', user.id, '2FA', req.ip);
+    const remaining = JSON.parse(db.select({ codes: schema.users.recoveryCodes }).from(schema.users).where(eq(schema.users.id, user.id)).get()?.codes || '[]').length;
+    return { user: publicUser({ ...user, lastLoginAt: Date.now() }), recoveryCodesRemaining: remaining };
   });
 
   app.post('/api/v1/auth/logout', async (req, reply) => {
@@ -127,5 +193,97 @@ export async function registerAuthRoutes(app) {
     db.update(schema.users).set({ passwordHash: hash }).where(eq(schema.users.id, user.id)).run();
     db.delete(schema.userSessions).where(eq(schema.userSessions.userId, user.id)).run();
     return { ok: true, signedOut: true };
+  });
+
+  app.get('/api/v1/auth/sessions', async (req) => {
+    const user = requireUser(req);
+    return { items: listSessions(user.id, req.cookies?.[COOKIE]) };
+  });
+
+  app.delete('/api/v1/auth/sessions/:id', async (req, reply) => {
+    const user = requireUser(req);
+    const sessions = listSessions(user.id, req.cookies?.[COOKIE]);
+    const target = sessions.find((item) => item.id === req.params.id);
+    if (!target) throw badRequest('Sitzung nicht gefunden.');
+    revokeSession(user.id, target.id);
+    if (target.current) reply.clearCookie(COOKIE, { path: '/' });
+    activity(user.id, 'auth.session.revoke', 'session', target.id, target.current ? 'aktuelle Sitzung' : null, req.ip);
+    return { ok: true, signedOut: target.current };
+  });
+
+  app.get('/api/v1/auth/2fa', async (req) => {
+    const user = requireUser(req);
+    const codes = user.recoveryCodes ? JSON.parse(user.recoveryCodes) : [];
+    return { enabled: Boolean(user.totpEnabled), recoveryCodesRemaining: codes.length };
+  });
+
+  app.post('/api/v1/auth/2fa/setup', async (req) => {
+    const user = requireUser(req);
+    if (user.totpEnabled) throw badRequest('Zwei-Faktor-Authentifizierung ist bereits aktiv.');
+    const secret = generateSecret();
+    const codes = Array.from({ length: 10 }, () => recoveryCode());
+    db.update(schema.users).set({
+      totpSecret: secret,
+      totpEnabled: false,
+      recoveryCodes: JSON.stringify(codes.map(hashRecoveryCode)),
+      totpLastCounter: null,
+    }).where(eq(schema.users.id, user.id)).run();
+    activity(user.id, 'auth.2fa.setup', 'user', user.id, null, req.ip);
+    return {
+      secret,
+      otpauth: otpauthUrl(secret, user.username),
+      recoveryCodes: codes,
+    };
+  });
+
+  app.post('/api/v1/auth/2fa/enable', {
+    schema: {
+      body: {
+        type: 'object', required: ['code'],
+        properties: { code: { type: 'string', minLength: 6, maxLength: 8 } },
+      },
+    },
+  }, async (req) => {
+    const user = requireUser(req);
+    if (!user.totpSecret) throw badRequest('Starte zuerst die Einrichtung.');
+    const counter = verifyTotp(user.totpSecret, req.body.code);
+    if (counter === null) throw badRequest('Der Code ist falsch oder abgelaufen.');
+    db.update(schema.users).set({ totpEnabled: true, totpLastCounter: counter }).where(eq(schema.users.id, user.id)).run();
+    activity(user.id, 'auth.2fa.enable', 'user', user.id, null, req.ip);
+    return { ok: true, enabled: true };
+  });
+
+  app.post('/api/v1/auth/2fa/disable', {
+    schema: {
+      body: {
+        type: 'object', required: ['password'],
+        properties: { password: { type: 'string', maxLength: 256 } },
+      },
+    },
+  }, async (req) => {
+    const user = requireUser(req);
+    if (!(await verifyPassword(user.passwordHash, req.body.password))) throw unauthorized('Passwort ist falsch.');
+    db.update(schema.users).set({
+      totpSecret: null, totpEnabled: false, recoveryCodes: null, totpLastCounter: null,
+    }).where(eq(schema.users.id, user.id)).run();
+    activity(user.id, 'auth.2fa.disable', 'user', user.id, null, req.ip);
+    return { ok: true, enabled: false };
+  });
+
+  app.post('/api/v1/auth/2fa/recovery', {
+    schema: {
+      body: {
+        type: 'object', required: ['password'],
+        properties: { password: { type: 'string', maxLength: 256 } },
+      },
+    },
+  }, async (req) => {
+    const user = requireUser(req);
+    if (!user.totpEnabled) throw badRequest('Zwei-Faktor-Authentifizierung ist nicht aktiv.');
+    if (!(await verifyPassword(user.passwordHash, req.body.password))) throw unauthorized('Passwort ist falsch.');
+    const codes = Array.from({ length: 10 }, () => recoveryCode());
+    db.update(schema.users).set({ recoveryCodes: JSON.stringify(codes.map(hashRecoveryCode)) }).where(eq(schema.users.id, user.id)).run();
+    activity(user.id, 'auth.2fa.recovery', 'user', user.id, '10 neue Codes', req.ip);
+    return { recoveryCodes: codes };
   });
 }

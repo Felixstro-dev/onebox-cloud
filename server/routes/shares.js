@@ -37,6 +37,7 @@ export async function registerShareRoutes(app) {
   app.delete('/api/v1/shares/:id', async (req) => {
     const user = requireUser(req);
     revokeShare(user.id, req.params.id);
+    activity(user.id, 'share.revoke', 'share', req.params.id, null, req.ip);
     return { ok: true };
   });
 

@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { get, patch, post } from '../lib/api.js';
+  import { del as deleteRequest, get, patch, post } from '../lib/api.js';
   import { user, settings as settingsStore, notify, confirmAction } from '../lib/stores.js';
   import { setUploadConcurrency } from '../lib/uploads.js';
   import { bytes } from '../lib/format.js';
@@ -30,10 +30,23 @@
   let metrics = null;
   let health = null;
   let metricsLoading = false;
+  let sessions = [];
+  let sessionsLoading = false;
+  let twoFactor = { enabled: false, recoveryCodesRemaining: 0 };
+  let securityBusy = false;
+  let setupOpen = false;
+  let setupData = null;
+  let setupCode = '';
+  let setupError = '';
+  let recoveryCodes = null;
+  let recoveryOpen = false;
+  let disableOpen = false;
+  let disablePassword = '';
+  let disableError = '';
 
   $: isAdmin = $user?.role === 'admin';
 
-  onMount(() => { load(); loadMetrics(); });
+  onMount(() => { load(); loadMetrics(); loadSecurity(); });
 
   async function load() {
     loading = true;
@@ -48,6 +61,87 @@
       settingsStore.set(settings);
       setUploadConcurrency(limits.uploads || 3);
     } catch (err) { failed = err.message; } finally { loading = false; }
+  }
+
+  async function loadSecurity() {
+    sessionsLoading = true;
+    try {
+      const [sessionData, factorData] = await Promise.all([
+        get('/api/v1/auth/sessions').catch(() => ({ items: [] })),
+        get('/api/v1/auth/2fa').catch(() => ({ enabled: false, recoveryCodesRemaining: 0 })),
+      ]);
+      sessions = sessionData.items || [];
+      twoFactor = factorData;
+    } finally { sessionsLoading = false; }
+  }
+
+  async function revoke(session) {
+    if (session.current) {
+      const ok = await confirmAction({ title: 'Diese Sitzung beenden?', description: 'Du wirst in diesem Browser abgemeldet.', confirmLabel: 'Abmelden', danger: true });
+      if (!ok) return;
+    }
+    try {
+      const result = await deleteRequest(`/api/v1/auth/sessions/${session.id}`);
+      if (result?.signedOut) { window.location.href = '/login'; return; }
+      notify('Sitzung beendet.', 'success');
+      await loadSecurity();
+    } catch (err) { notify(err.message, 'error'); }
+  }
+
+  async function startTwoFactor() {
+    securityBusy = true;
+    setupError = '';
+    try {
+      setupData = await post('/api/v1/auth/2fa/setup', {});
+      setupCode = '';
+      setupOpen = true;
+    } catch (err) { notify(err.message, 'error'); } finally { securityBusy = false; }
+  }
+
+  async function enableTwoFactor() {
+    securityBusy = true;
+    setupError = '';
+    try {
+      await post('/api/v1/auth/2fa/enable', { code: setupCode });
+      setupOpen = false;
+      recoveryCodes = setupData.recoveryCodes;
+      recoveryOpen = true;
+      setupData = null;
+      twoFactor = { enabled: true, recoveryCodesRemaining: recoveryCodes.length };
+      notify('Zwei-Faktor-Authentifizierung aktiv.', 'success');
+    } catch (err) { setupError = err.message; } finally { securityBusy = false; }
+  }
+
+  async function disableTwoFactor() {
+    securityBusy = true;
+    disableError = '';
+    try {
+      await post('/api/v1/auth/2fa/disable', { password: disablePassword });
+      disableOpen = false;
+      disablePassword = '';
+      twoFactor = { enabled: false, recoveryCodesRemaining: 0 };
+      notify('Zwei-Faktor-Authentifizierung deaktiviert.', 'success');
+    } catch (err) { disableError = err.message; } finally { securityBusy = false; }
+  }
+
+  async function newRecoveryCodes() {
+    securityBusy = true;
+    disableError = '';
+    try {
+      const data = await post('/api/v1/auth/2fa/recovery', { password: disablePassword });
+      recoveryCodes = data.recoveryCodes;
+      recoveryOpen = true;
+      disableOpen = false;
+      disablePassword = '';
+      twoFactor = { ...twoFactor, recoveryCodesRemaining: recoveryCodes.length };
+    } catch (err) { disableError = err.message; } finally { securityBusy = false; }
+  }
+
+  function copyRecoveryCodes() {
+    navigator.clipboard?.writeText(recoveryCodes.join('\n')).then(
+      () => notify('Wiederherstellungscodes kopiert.', 'success'),
+      () => notify('Kopieren nicht möglich. Bitte Codes notieren.', 'warning'),
+    );
   }
 
   async function loadMetrics() {
@@ -227,6 +321,25 @@
           </div>
         </section>
 
+        <section class="card" aria-labelledby="twofactor-title">
+          <div class="card-head"><h3 id="twofactor-title">Zwei-Faktor-Anmeldung</h3><span class="tag">{twoFactor.enabled ? 'Aktiv' : 'Aus'}</span></div>
+          <p class="stat-foot" style="margin-bottom:var(--space-4)">
+            Ein Code aus deiner Authenticator-App schützt die Anmeldung zusätzlich. Bewahre die Wiederherstellungscodes sicher auf.
+          </p>
+          {#if twoFactor.enabled}
+            <div class="kv" style="margin-bottom:var(--space-4)">
+              <dt>Status</dt><dd>Aktiv</dd>
+              <dt>Codes übrig</dt><dd>{twoFactor.recoveryCodesRemaining}</dd>
+            </div>
+            <div class="page-actions">
+              <Button variant="secondary" size="sm" icon="refresh-cw" loading={securityBusy} onclick={() => { recoveryCodes = null; disableError = ''; disablePassword = ''; disableOpen = true; }}>Codes erneuern</Button>
+              <Button variant="quiet" size="sm" icon="shield-off" onclick={() => { disableError = ''; disablePassword = ''; disableOpen = true; }}>Deaktivieren</Button>
+            </div>
+          {:else}
+            <Button variant="primary" size="sm" icon="shield-check" loading={securityBusy} onclick={startTwoFactor}>Einrichten</Button>
+          {/if}
+        </section>
+
         <section class="card" aria-labelledby="dav-title">
           <div class="card-head"><h3 id="dav-title">WebDAV</h3><Icon name="network" size={17} /></div>
           <p class="stat-foot" style="margin-bottom:var(--space-3)">Binde Onebox in deinem Dateimanager ein. Melde dich mit deinem Benutzernamen und Passwort an.</p>
@@ -236,14 +349,27 @@
     </div>
 
     <section class="section danger-zone" aria-labelledby="sessions-title">
-      <div class="card-head"><h2 id="sessions-title" style="font-size:var(--text-lg)">Sitzungen</h2><Icon name="shield-check" size={17} /></div>
-      <p class="stat-foot">Wenn du dein Passwort änderst, werden alle Sitzungen beendet. Aktuell bist du in diesem Browser angemeldet.</p>
-      <div class="page-actions" style="margin-top:var(--space-4)">
-        <Button variant="secondary" size="sm" icon="log-out" onclick={async () => {
-          const ok = await confirmAction({ title: 'Alle Sitzungen beenden?', description: 'Du wirst auch in diesem Browser abgemeldet.', confirmLabel: 'Abmelden', danger: true });
-          if (ok) { try { await post('/api/v1/auth/logout', {}); } catch {} window.location.href = '/login'; }
-        }}>Abmelden</Button>
+      <div class="card-head">
+        <h2 id="sessions-title" style="font-size:var(--text-lg)">Aktive Sitzungen</h2>
+        <Button variant="quiet" size="sm" icon="refresh-cw" loading={sessionsLoading} onclick={loadSecurity}>Aktualisieren</Button>
       </div>
+      <p class="stat-foot">Geräte, die mit deinem Konto angemeldet sind. Beende fremde Sitzungen, wenn dir etwas unklar vorkommt.</p>
+      {#if sessions.length}
+        <ul class="session-list">
+          {#each sessions as session (session.id)}
+            <li class="session-item">
+              <span class="session-icon" aria-hidden="true"><Icon name={session.current ? 'monitor' : 'smartphone'} size={18} /></span>
+              <div class="session-body">
+                <strong>{session.current ? 'Dieser Browser' : (session.userAgent || 'Unbekanntes Gerät')}</strong>
+                <span class="stat-foot">{session.ip || 'unbekannte IP'} · zuletzt {new Date(session.lastSeenAt).toLocaleString('de-DE')}</span>
+              </div>
+              <Button variant={session.current ? 'quiet' : 'secondary'} size="sm" onclick={() => revoke(session)}>{session.current ? 'Abmelden' : 'Beenden'}</Button>
+            </li>
+          {/each}
+        </ul>
+      {:else if !sessionsLoading}
+        <p class="stat-foot">Keine aktiven Sitzungen gefunden.</p>
+      {/if}
     </section>
   {/if}
 </div>
@@ -261,5 +387,44 @@
   <svelte:fragment slot="footer">
     <Button variant="quiet" onclick={() => (passwordOpen = false)}>Abbrechen</Button>
     <Button variant="primary" loading={passwordBusy} disabled={!currentPassword || newPassword.length < 10} onclick={changePassword}>Passwort ändern</Button>
+  </svelte:fragment>
+</Dialog>
+
+<Dialog open={setupOpen} title="Zwei-Faktor-Authentifizierung einrichten" description="Scanne den Schlüssel in deiner Authenticator-App und bestätige mit einem Code." size="sm" onclose={() => (setupOpen = false)}>
+  {#if setupData}
+    <div style="display:grid;gap:var(--space-4)">
+      <div class="code-block" style="word-break:break-all">{setupData.secret}</div>
+      <div class="code-block" style="word-break:break-all;font-size:var(--text-xs)">{setupData.otpauth}</div>
+      <Field label="Code aus der App" id="totp-code" error={setupError}>
+        <input id="totp-code" class="input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" bind:value={setupCode} placeholder="123456" />
+      </Field>
+    </div>
+  {/if}
+  <svelte:fragment slot="footer">
+    <Button variant="quiet" onclick={() => (setupOpen = false)}>Abbrechen</Button>
+    <Button variant="primary" loading={securityBusy} disabled={!setupCode.trim()} onclick={enableTwoFactor}>Aktivieren</Button>
+  </svelte:fragment>
+</Dialog>
+
+<Dialog open={disableOpen} title={twoFactor.enabled ? 'Zwei-Faktor-Authentifizierung' : 'Codes erneuern'} description="Bestätige mit deinem Passwort." size="sm" onclose={() => (disableOpen = false)}>
+  <Field label="Passwort" id="totp-password" error={disableError}>
+    <input id="totp-password" class="input" type="password" bind:value={disablePassword} autocomplete="current-password" />
+  </Field>
+  <svelte:fragment slot="footer">
+    <Button variant="quiet" onclick={() => (disableOpen = false)}>Abbrechen</Button>
+    <Button variant="secondary" loading={securityBusy} disabled={!disablePassword} onclick={newRecoveryCodes}>Neue Codes</Button>
+    <Button variant="danger" loading={securityBusy} disabled={!disablePassword} onclick={disableTwoFactor}>Deaktivieren</Button>
+  </svelte:fragment>
+</Dialog>
+
+<Dialog open={recoveryOpen} title="Wiederherstellungscodes" description="Jeder Code funktioniert genau einmal. Bewahre sie getrennt vom Passwort auf." size="sm" onclose={() => (recoveryOpen = false)}>
+  {#if recoveryCodes}
+    <div class="recovery-grid">
+      {#each recoveryCodes as code (code)}<code>{code}</code>{/each}
+    </div>
+  {/if}
+  <svelte:fragment slot="footer">
+    <Button variant="quiet" onclick={() => (recoveryOpen = false)}>Schließen</Button>
+    <Button variant="primary" icon="copy" onclick={copyRecoveryCodes}>Kopieren</Button>
   </svelte:fragment>
 </Dialog>

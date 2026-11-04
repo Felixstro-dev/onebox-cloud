@@ -18,6 +18,10 @@ export const users = sqliteTable('users', {
   role: text('role', { enum: ['admin', 'user'] }).notNull().default('user'),
   quotaBytes: integer('quota_bytes').notNull().default(0),
   disabled: integer('disabled', { mode: 'boolean' }).notNull().default(false),
+  totpSecret: text('totp_secret'),
+  totpEnabled: integer('totp_enabled', { mode: 'boolean' }).notNull().default(false),
+  recoveryCodes: text('recovery_codes'),
+  totpLastCounter: integer('totp_last_counter'),
   createdAt: integer('created_at').notNull().default(now),
   lastLoginAt: integer('last_login_at'),
 }, (t) => [uniqueIndex('users_username_uq').on(sql`lower(${t.username})`)]);

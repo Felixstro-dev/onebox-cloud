@@ -10,6 +10,7 @@ import { badRequest, forbidden, notFound, tooLarge } from '../lib/errors.js';
 import { rateLimit } from '../services/auth.js';
 import { activity, createFile, toClient } from '../services/nodes.js';
 import { fileSize, prepareUpload, tempPath, writeChunk } from '../services/storage.js';
+import { resolveUploadMime } from '../services/content-type.js';
 import { cleanName, isImage, mimeOf } from '../lib/names.js';
 import { sendFile } from './files.js';
 import { thumbnails } from '../services/runtime.js';
@@ -164,7 +165,7 @@ export async function registerPublicRoutes(app) {
     const offset = Number(req.headers['upload-offset']);
     if (offset !== row.offset) throw badRequest(`Offset mismatch. Server has ${row.offset}.`);
     if (!req.body || typeof req.body.pipe !== 'function') throw badRequest('Expected an octet stream.');
-    const bytesWritten = await writeChunk(row.tempKey, offset, req.body);
+    const bytesWritten = await writeChunk(row.tempKey, offset, req.body, Math.max(0, row.size - offset));
     const next = Math.min(offset + bytesWritten, row.size);
     db.update(schema.uploadSessions).set({ offset: next, updatedAt: Date.now() }).where(eq(schema.uploadSessions.id, row.id)).run();
     reply.header('Upload-Offset', next);
@@ -180,7 +181,8 @@ export async function registerPublicRoutes(app) {
     if (row.offset !== row.size) throw badRequest('Upload is incomplete.');
     if (share.maxTotalSize && share.totalUploaded + row.size > share.maxTotalSize) throw tooLarge('The upload request has reached its total size.');
     const owner = db.select().from(schema.users).where(eq(schema.users.id, share.ownerId)).get();
-    const node = await createFile({ user: owner, parentId: share.nodeId, name: row.name, mime: row.mime, tempFile: row.tempKey });
+    const mime = await resolveUploadMime(row.tempKey, row.mime, row.name);
+    const node = await createFile({ user: owner, parentId: share.nodeId, name: row.name, mime, tempFile: row.tempKey });
     db.delete(schema.uploadSessions).where(eq(schema.uploadSessions.id, row.id)).run();
     db.update(schema.shares).set({ totalUploaded: share.totalUploaded + row.size }).where(eq(schema.shares.id, share.id)).run();
     activity(share.ownerId, 'share.upload', 'node', node.id, `${node.name} via upload request`, req.ip);

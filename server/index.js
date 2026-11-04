@@ -1,10 +1,11 @@
 import fs from 'node:fs';
-import { config, paths } from './config.js';
+import { config, paths, assertValidConfig } from './config.js';
 import { runMigrations, closeDb, db, schema } from './db/index.js';
 import { and, eq } from 'drizzle-orm';
 import { cleanupAbandonedUploads } from './services/storage.js';
 
 async function main() {
+  assertValidConfig();
   await runMigrations();
   const { buildApp } = await import('./app.js');
   const app = await buildApp();

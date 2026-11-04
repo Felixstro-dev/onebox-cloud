@@ -6,13 +6,17 @@ import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
 import { config, paths } from '../config.js';
 import { id } from '../lib/ids.js';
+import { safeJoin } from '../lib/paths.js';
 
 export function tempPath(sessionId) {
-  return path.join(paths.uploads, `${sessionId}.part`);
+  const safeId = String(sessionId).replace(/[^a-z0-9-]/gi, '');
+  if (!safeId) throw new Error('Invalid upload session id.');
+  return safeJoin(paths.uploads, `${safeId}.part`);
 }
 
 export function objectPath(hash) {
-  return path.join(config.filesDir, 'objects', hash.slice(0, 2), hash);
+  if (!/^[a-f0-9]{64}$/i.test(String(hash))) throw new Error('Invalid object key.');
+  return safeJoin(config.filesDir, 'objects', String(hash).slice(0, 2), String(hash));
 }
 
 export async function prepareUpload(size) {
@@ -23,12 +27,18 @@ export async function prepareUpload(size) {
   return { sessionId, file };
 }
 
-export async function writeChunk(file, offset, stream) {
+export async function writeChunk(file, offset, stream, maxBytes = Infinity) {
   const sink = fs.createWriteStream(file, { flags: 'r+', start: offset });
   let bytes = 0;
   const counter = new Transform({
     transform(chunk, encoding, callback) {
       bytes += chunk.length;
+      if (bytes > maxBytes) {
+        // Überschuss verwerfen, aber den Stream leerlaufen lassen. Ein harter
+        // Fehler mitten im Request würde den Upload-Stream hängen lassen.
+        const keep = Math.max(0, chunk.length - (bytes - maxBytes));
+        return callback(null, keep ? chunk.subarray(0, keep) : Buffer.alloc(0));
+      }
       callback(null, chunk);
     }
   });
@@ -100,7 +110,7 @@ export async function cleanupTemp(maxAgeMs = 24 * 60 * 60 * 1000) {
   const files = await fsp.readdir(paths.uploads).catch(() => []);
   const now = Date.now();
   for (const file of files) {
-    const full = path.join(paths.uploads, file);
+    const full = safeJoin(paths.uploads, file);
     const stat = await fsp.stat(full).catch(() => null);
     if (stat && now - stat.mtimeMs > maxAgeMs) await fsp.unlink(full).catch(() => {});
   }

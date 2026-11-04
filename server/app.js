@@ -5,6 +5,8 @@ import cookie from '@fastify/cookie';
 import websocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
 import compress from '@fastify/compress';
+import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
 import { config } from './config.js';
 import { sessionUser, COOKIE } from './services/auth.js';
 import { HttpError } from './lib/errors.js';
@@ -25,20 +27,43 @@ export async function buildApp({ logger = true } = {}) {
   await app.register(websocket, { options: { maxPayload: 64 * 1024 } });
   await app.register(compress, { threshold: 1024 });
 
+  // Sicherheitsheader zentral über Helmet. Die CSP erlaubt nur eigene
+  // Skripte, eigene Verbindungen (inkl. WebSocket) und Bilder/Medien aus
+  // Blob-URLs der Vorschau. Inhalte Dritter werden nie eingebunden.
+  await app.register(helmet, {
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'self'"],
+        baseUri: ["'self'"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+        formAction: ["'self'"],
+        imgSrc: ["'self'", 'data:', 'blob:'],
+        mediaSrc: ["'self'", 'blob:'],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        fontSrc: ["'self'", 'data:'],
+        scriptSrc: ["'self'"],
+        connectSrc: ["'self'", 'ws:', 'wss:'],
+        workerSrc: ["'self'", 'blob:'],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'same-origin' },
+    xFrameOptions: { action: 'deny' },
+    hsts: config.secureCookies ? { maxAge: 31536000, includeSubDomains: true } : false,
+  });
+  // Login und öffentliche Endpunkte aktivieren das Limit gezielt per Route.
+  await app.register(rateLimit, { global: false, max: 120, timeWindow: '1 minute' });
+
   app.addContentTypeParser('application/offset+octet-stream', (req, payload, done) => done(null, payload));
   app.addContentTypeParser('application/octet-stream', (req, payload, done) => done(null, payload));
   app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (req, body, done) => done(null, Object.fromEntries(new URLSearchParams(body))));
   app.addContentTypeParser('*', (req, payload, done) => done(null, payload));
 
   app.addHook('onRequest', async (req, reply) => {
-    reply.header('X-Content-Type-Options', 'nosniff');
-    reply.header('Referrer-Policy', 'same-origin');
-    reply.header('X-Frame-Options', 'DENY');
     reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     if (config.secureCookies) reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-    if (!req.url.startsWith('/api/v1/public/') && !req.url.startsWith('/dav')) {
-      reply.header('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'");
-    }
   });
 
   app.addHook('onSend', async (request, reply, payload) => {

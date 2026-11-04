@@ -1,0 +1,4 @@
+ALTER TABLE `users` ADD `totp_secret` text;--> statement-breakpoint
+ALTER TABLE `users` ADD `totp_enabled` integer DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE `users` ADD `recovery_codes` text;--> statement-breakpoint
+ALTER TABLE `users` ADD `totp_last_counter` integer;
