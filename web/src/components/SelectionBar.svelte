@@ -6,15 +6,18 @@
 
 {#if $selectionBar}
   <div class="selection-bar" role="toolbar" aria-label="Auswahl" transition:slide={{ duration: 220 }}>
-    <strong class="selection-bar__count">
-      {#if $selectionBar.count === undefined}
-        {$selectionBar.label}
-      {:else}
-        {$selectionBar.count.toLocaleString('de-DE')} von {$selectionBar.total.toLocaleString('de-DE')} ausgewählt
-      {/if}
-    </strong>
+    <div class="selection-bar__count-box">
+      <strong class="selection-bar__count">
+        {#if $selectionBar.count === undefined}
+          {$selectionBar.label}
+        {:else}
+          {$selectionBar.count.toLocaleString('de-DE')} von {$selectionBar.total.toLocaleString('de-DE')} ausgewählt
+        {/if}
+      </strong>
+    </div>
 
-    <Button variant="quiet" size="sm" icon="x" onclick={$selectionBar.onClear}>Aufheben</Button>
+    <div class="selection-bar__actions">
+      <Button variant="quiet" size="sm" icon="x" onclick={$selectionBar.onClear}>Aufheben</Button>
 
     {#if $selectionBar.single}
       <Button variant="quiet" size="sm" icon="link" onclick={$selectionBar.onShare}>Teilen</Button>
@@ -36,5 +39,6 @@
     <Button variant="danger" size="sm" icon="trash-2" loading={$selectionBar.busy} disabled={$selectionBar.busy} onclick={$selectionBar.onTrash}>
       {$selectionBar.trashLabel || 'Löschen'}
     </Button>
+    </div>
   </div>
 {/if}

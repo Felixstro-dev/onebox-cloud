@@ -313,13 +313,16 @@ button { cursor: pointer; }
 .file-tile:hover .file-tile__check, .file-tile.is-selected .file-tile__check { opacity: 1; }
 .file-tile__check input { width: 1rem; height: 1rem; accent-color: var(--color-accent-brand); display: block; }
 .selection-bar {
-  display: flex; align-items: center; gap: var(--space-2);
-  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
   background: var(--color-bg-elevated); border: 1px solid var(--color-border-default);
   border-radius: var(--radius-xl); box-shadow: var(--shadow-menu);
   width: 100%; max-width: 100%; flex-wrap: wrap; justify-content: center;
 }
 @keyframes selection-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.selection-bar__count-box { background: var(--color-bg-panel); border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); padding: var(--space-2) var(--space-3); display: inline-flex; align-items: center; gap: var(--space-2); }
+.selection-bar__count-box .selection-bar__count { padding-right: 0; font-size: var(--text-base); font-weight: var(--weight-medium); }
+.selection-bar__actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; flex: 1 1 auto; justify-content: flex-end; }
 .selection-bar span { font-size: var(--text-sm); color: var(--color-text-secondary); white-space: nowrap; }
 .selection-bar__count { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--color-text-primary); white-space: nowrap; padding-right: var(--space-1); }
 .archive-transfer {

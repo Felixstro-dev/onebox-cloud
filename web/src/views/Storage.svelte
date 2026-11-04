@@ -18,6 +18,9 @@
   let newLocationSource = '';
   let creating = false;
   let createError = '';
+  let detectedDrives = [];
+  let scanningDrives = false;
+  let driveScanError = '';
 
   onMount(load);
 
@@ -50,6 +53,24 @@
       newLocationSource = '';
       await load();
     } catch (err) { createError = err.message; } finally { creating = false; }
+  }
+
+  async function scanDrives() {
+    scanningDrives = true;
+    driveScanError = '';
+    detectedDrives = [];
+    try {
+      const result = await get('/api/v1/storage/drives');
+      detectedDrives = result.drives || [];
+    } catch (err) { driveScanError = err.message || 'Scan fehlgeschlagen'; }
+    finally { scanningDrives = false; }
+  }
+
+  async function selectDrive(drive) {
+    newLocationName = drive.label || drive.path.split('/').pop();
+    newLocationRoot = `/mnt/onebox-${newLocationName.replace(/\W+/g, '-')}`;
+    newLocationSource = drive.path;
+    detectedDrives = [];
   }
 
   const family = {
@@ -188,6 +209,23 @@
             </div>
           {:else}
             <p class="stat-foot">Keine Speicherorte hinterlegt.</p>
+          {/if}
+          <button class="btn btn--secondary btn--sm" type="button" onclick={scanDrives} disabled={scanningDrives} aria-label="Laufwerke scannen">
+            {scanningDrives ? 'Suche Laufwerke…' : 'Laufwerke scannen'}
+          </button>
+          {#if driveScanError}<p class="stat-foot" role="alert">{driveScanError}</p>{/if}
+          {#if detectedDrives.length > 0}
+            <div class="field">
+              <label class="field__label">Gefundene Laufwerke</label>
+              <div class="chip-row">
+                {#each detectedDrives as drive}
+                  <button type="button" class="chip" onclick={() => selectDrive(drive)} aria-label="Laufwerk {drive.path} auswählen">
+                    {drive.name} · {drive.label || 'Kein Label'} · {drive.size || 'Unbekannt'} · {drive.mountStatus || 'Unbekannt'}
+                  </button>
+                {/each}
+              </div>
+              <span class="field__hint">Klicke ein Laufwerk, um es als Speicher zu verwenden. Das Feld Quelle wird automatisch gefüllt.</span>
+            </div>
           {/if}
           <form class="storage-form" onsubmit={(event) => createLocation(event)}>
             <div class="field">

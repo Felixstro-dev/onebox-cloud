@@ -1,6 +1,6 @@
 import fsp from 'node:fs/promises';
 import path from 'node:path';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db, schema } from '../db/index.js';
 import { requireAdmin, requireUser } from '../services/auth.js';
 import { quotaFor, usedBytes } from '../services/nodes.js';

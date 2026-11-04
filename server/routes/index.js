@@ -6,6 +6,7 @@ import { registerShareRoutes } from './shares.js';
 import { registerPhotoRoutes } from './photos.js';
 import { registerUserRoutes } from './users.js';
 import { registerStorageRoutes } from './storage.js';
+import { registerDriveRoutes } from './drives.js';
 import { registerBackupRoutes } from './backups.js';
 import { registerAgentRoutes, registerIngestRoutes } from './agents.js';
 import { registerPublicRoutes } from './public.js';
@@ -41,6 +42,7 @@ export async function registerRoutes(app) {
     await registerPhotoRoutes(scope);
     await registerUserRoutes(scope);
     await registerStorageRoutes(scope);
+    await registerDriveRoutes(scope);
     await registerBackupRoutes(scope);
     await registerAgentRoutes(scope);
     await registerIngestRoutes(scope);
