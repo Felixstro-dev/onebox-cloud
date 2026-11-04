@@ -4,9 +4,14 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { config, paths } from '../config.js';
 import { id } from '../lib/ids.js';
 import { safeJoin } from '../lib/paths.js';
+import { badRequest } from '../lib/errors.js';
+
+const execFileAsync = promisify(execFile);
 
 // Aktiver Speicher (Root). Kann zur Laufzeit über die Admin-API auf einen
 // anderen Datenträger umgeschaltet werden; Uploads und Objekte landen dann
@@ -19,6 +24,34 @@ export function setActiveStorageRoot(root) {
 
 export function storageRoot() {
   return activeRoot;
+}
+
+/**
+ * Mountet eine Quelle (z. B. /dev/sdb1) nach Ziel (z. B. /mnt/onebox) und
+ * liefert den aktivierten Root zurück. Existiert der Zielpfad bereits, wird
+ * kein Mount ausgeführt. Ohne Quelle wird nur das Zielverzeichnis erwartet.
+ */
+export async function ensureMounted(rootPath, source) {
+  const target = path.resolve(String(rootPath || ''));
+  const src = String(source || '').trim() || null;
+  const mountSource = src || target;
+  try {
+    const stat = await fsp.stat(target);
+    if (stat.isDirectory()) return { root: target, mounted: false };
+  } catch {
+    // Ziel existiert noch nicht -> Mounten.
+  }
+  await execFileAsync('mkdir', ['-p', target]);
+  if (!src) {
+    // Ohne Geräteeingabe reicht ein angelegter Ordner (lokaler Datenträger).
+    return { root: target, mounted: false };
+  }
+  try {
+    await execFileAsync('mount', ['-t', 'auto', mountSource, target]);
+  } catch (error) {
+    throw badRequest(`Mount von ${mountSource} nach ${target} fehlgeschlagen: ${error.message}`);
+  }
+  return { root: target, mounted: true };
 }
 
 export function tempPath(sessionId) {

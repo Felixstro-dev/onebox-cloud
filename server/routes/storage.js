@@ -4,19 +4,19 @@ import { and, eq, sql } from 'drizzle-orm';
 import { db, schema } from '../db/index.js';
 import { requireAdmin, requireUser } from '../services/auth.js';
 import { quotaFor, usedBytes } from '../services/nodes.js';
-import { diskStats, setActiveStorageRoot } from '../services/storage.js';
+import { diskStats, ensureMounted, setActiveStorageRoot } from '../services/storage.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { id } from '../lib/ids.js';
 import { config } from '../config.js';
 
 function toLocation(row) {
   if (!row) return null;
-  return { id: row.id, name: row.name, kind: row.kind, rootPath: row.rootPath, isDefault: Boolean(row.isDefault) };
+  return { id: row.id, name: row.name, kind: row.kind, rootPath: row.rootPath, source: row.source || null, isDefault: Boolean(row.isDefault) };
 }
 
 function defaultLocation() {
   const rootPath = config.filesDir || path.resolve(process.cwd(), 'files');
-  return { id: 'local', name: 'Lokaler Datenträger', kind: 'local', rootPath, isDefault: true };
+  return { id: 'local', name: 'Lokaler Datenträger', kind: 'local', rootPath, source: null, isDefault: true };
 }
 
 export async function registerStorageRoutes(app) {
@@ -58,6 +58,7 @@ export async function registerStorageRoutes(app) {
         properties: {
           name: { type: 'string', minLength: 1, maxLength: 120 },
           rootPath: { type: 'string', minLength: 1 },
+          source: { type: 'string', minLength: 1, maxLength: 255 },
           isDefault: { type: 'boolean' },
         },
       },
@@ -66,16 +67,24 @@ export async function registerStorageRoutes(app) {
     requireAdmin(req);
     const name = String(req.body.name || '').trim();
     const rootPath = String(req.body.rootPath || '');
+    const source = String(req.body.source || '').trim() || null;
     if (!name || !rootPath) throw badRequest('Name und Pfad sind erforderlich.');
     const resolved = path.resolve(rootPath);
     const stat = await fsp.stat(resolved).catch(() => null);
     if (!stat || !stat.isDirectory()) throw badRequest('Der angegebene Speicherpfad ist kein existierender Ordner.');
     const isDefault = req.body.isDefault === true;
+    let root = resolved;
+    if (isDefault) {
+      const ensured = await ensureMounted(resolved, source);
+      root = ensured.root;
+      setActiveStorageRoot(root);
+    }
     const row = db.insert(schema.storageLocations).values({
       id: id(24),
       name,
       kind: 'local',
-      rootPath: resolved,
+      rootPath: root,
+      source,
       isDefault,
     }).returning();
     const created = row[0];
@@ -88,7 +97,7 @@ export async function registerStorageRoutes(app) {
       body: {
         type: 'object',
         required: ['isDefault'],
-        properties: { isDefault: { type: 'boolean' } },
+        properties: { isDefault: { type: 'boolean' }, source: { type: 'string', minLength: 1, maxLength: 255 } },
       },
     },
   }, async (req, reply) => {
@@ -96,8 +105,12 @@ export async function registerStorageRoutes(app) {
     const row = db.select().from(schema.storageLocations).where(eq(schema.storageLocations.id, req.params.id)).get();
     if (!row) throw notFound('Speicher nicht gefunden.');
     db.update(schema.storageLocations).set({ isDefault: req.body.isDefault === true }).where(eq(schema.storageLocations.id, row.id)).run();
+    if (req.body.isDefault) {
+      const source = row.source || String(req.body.source || '').trim() || null;
+      const ensured = await ensureMounted(row.rootPath, source);
+      setActiveStorageRoot(ensured.root);
+    }
     const updated = db.select().from(schema.storageLocations).where(eq(schema.storageLocations.id, row.id)).get();
-    if (updated && updated.isDefault) setActiveStorageRoot(updated.rootPath);
     return { location: toLocation(updated) };
   });
 
@@ -106,6 +119,7 @@ export async function registerStorageRoutes(app) {
     const row = db.select().from(schema.storageLocations).where(eq(schema.storageLocations.id, req.params.id)).get();
     if (!row) throw notFound('Speicher nicht gefunden.');
     db.delete(schema.storageLocations).where(eq(schema.storageLocations.id, row.id)).run();
+    if (row.isDefault) setActiveStorageRoot(config.filesDir);
     return { ok: true };
   });
 

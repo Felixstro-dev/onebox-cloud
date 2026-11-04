@@ -120,6 +120,7 @@ export const storageLocations = sqliteTable('storage_locations', {
   name: text('name').notNull(),
   kind: text('kind').notNull().default('local'),
   rootPath: text('root_path').notNull(),
+  source: text('source'),
   isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
   createdAt: integer('created_at').notNull().default(now),
 });

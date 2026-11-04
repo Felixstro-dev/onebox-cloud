@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { get, put } from '../lib/api.js';
+  import { get, post, put } from '../lib/api.js';
   import { user } from '../lib/stores.js';
   import { bytes } from '../lib/format.js';
   import Icon from '../components/Icon.svelte';
@@ -13,6 +13,11 @@
   let selectedLocationId = '';
   let loading = true;
   let failed = '';
+  let newLocationName = '';
+  let newLocationRoot = '';
+  let newLocationSource = '';
+  let creating = false;
+  let createError = '';
 
   onMount(load);
 
@@ -30,8 +35,21 @@
   async function selectStorage() {
     const location = locations.find((entry) => entry.id === selectedLocationId) || locations[0];
     if (!location) return;
-    await put(`/api/v1/storage/locations/${location.id}`, { isDefault: true });
+    await put(`/api/v1/storage/locations/${location.id}`, { isDefault: true, source: location.source || location.rootPath });
     storage = await get('/api/v1/storage');
+  }
+
+  async function createLocation(event) {
+    event?.preventDefault?.();
+    creating = true;
+    createError = '';
+    try {
+      await post('/api/v1/storage/locations', { name: newLocationName, rootPath: newLocationRoot, source: newLocationSource || undefined, isDefault: false });
+      newLocationName = '';
+      newLocationRoot = '';
+      newLocationSource = '';
+      await load();
+    } catch (err) { createError = err.message; } finally { creating = false; }
   }
 
   const family = {
@@ -163,7 +181,7 @@
             <div class="input-group">
               <select class="select" bind:value={selectedLocationId} aria-label="Speicher für Uploads auswählen">
                 {#each locations as location (location.id)}
-                  <option value={location.id}>{location.name} · {location.rootPath}</option>
+                  <option value={location.id}>{location.name} · {location.rootPath}{location.source ? ` · ${location.source}` : ''}</option>
                 {/each}
               </select>
               <button class="btn btn--primary" type="button" onclick={selectStorage}>Als Speicher verwenden</button>
@@ -171,6 +189,25 @@
           {:else}
             <p class="stat-foot">Keine Speicherorte hinterlegt.</p>
           {/if}
+          <form class="storage-form" onsubmit={(event) => createLocation(event)}>
+            <div class="field">
+              <label class="field__label" for="storage-name">Name</label>
+              <input id="storage-name" class="input" type="text" bind:value={newLocationName} placeholder="Mein HDD" required />
+              <span class="field__hint">Eindeutiger Name für diesen Speicherort.</span>
+            </div>
+            <div class="field">
+              <label class="field__label" for="storage-root">Mount-Pfad</label>
+              <input id="storage-root" class="input" type="text" bind:value={newLocationRoot} placeholder="/mnt/onebox-data" required />
+              <span class="field__hint">Zielordner, in den der Datenträger gemountet wird (z. B. /mnt/onebox-data).</span>
+            </div>
+            <div class="field">
+              <label class="field__label" for="storage-source">Gerät / Quelle</label>
+              <input id="storage-source" class="input" type="text" bind:value={newLocationSource} placeholder="/dev/sdb1" />
+              <span class="field__hint">Optional: Geräteeinheit (z. B. /dev/sdb1), die nach dem Mount-Pfad gemountet wird.</span>
+            </div>
+            <button class="btn btn--primary" type="submit" disabled={creating}>{creating ? '…' : 'Speicher anlegen'}</button>
+          </form>
+          {#if createError}<p class="stat-foot" role="alert">{createError}</p>{/if}
           <p class="stat-foot">Uploads landen nach der Auswahl im gewählten Datenträger. Der Papierkorb und Objekte des bisherigen Speichers bleiben dort erhalten.</p>
         </div>
       </section>
