@@ -22,6 +22,7 @@
       onsuccess(result.user);
     } catch (err) {
       error = err.message || 'Anmeldung fehlgeschlagen.';
+      notify(error, 'error');
     } finally {
       busy = false;
     }

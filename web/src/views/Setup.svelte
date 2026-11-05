@@ -5,6 +5,7 @@
   import Button from '../components/Button.svelte';
   import Field from '../components/Field.svelte';
   import { autofocus } from '../lib/focus.js';
+  import { PASSWORD_MIN_LENGTH, setupPasswordErrors } from '../lib/password-validation.js';
   export let ondone = () => {};
 
   let username = '';
@@ -15,21 +16,36 @@
   let error = '';
   let success = '';
   let busy = false;
+  let passwordTouched = false;
+  let repeatTouched = false;
+  let submitted = false;
 
-  $: mismatch = repeat.length > 0 && password !== repeat;
+  $: ({ passwordError, repeatError } = setupPasswordErrors(password, repeat, {
+    passwordTouched, repeatTouched, submitted,
+  }));
 
   async function submit(event) {
     event.preventDefault();
     if (busy) return;
     error = '';
     success = '';
+    submitted = true;
     const normalizedUsername = username.trim();
     if (!/^[a-zA-Z0-9._-]+$/.test(normalizedUsername)) {
       error = 'Der Benutzername darf nur Buchstaben, Zahlen, Punkte, Bindestriche und Unterstriche enthalten.';
+      notify(error, 'error');
       return;
     }
-    if (password.length < 10) { error = 'Das Passwort muss mindestens 10 Zeichen lang sein.'; return; }
-    if (!repeat || password !== repeat) { error = 'Die Passwörter stimmen nicht überein.'; return; }
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      error = passwordError;
+      notify(error, 'error');
+      return;
+    }
+    if (!repeat || password !== repeat) {
+      error = repeatError;
+      notify(error, 'error');
+      return;
+    }
     busy = true;
     try {
       const result = await post('/api/v1/system/setup', {
@@ -42,6 +58,7 @@
       ondone(result.user);
     } catch (err) {
       error = err.message || 'Einrichtung fehlgeschlagen.';
+      notify(error, 'error');
     } finally {
       busy = false;
     }
@@ -71,11 +88,11 @@
         <Field label="Anzeigename" id="setup-name" hint="Optional – so erscheinst du in der Oberfläche.">
           <input id="setup-name" class="input" bind:value={displayName} autocomplete="name" />
         </Field>
-        <Field label="Passwort" id="setup-pass" hint="Mindestens 10 Zeichen. Ein Satz ist besser als ein Wort." required>
-          <input id="setup-pass" class="input" type="password" bind:value={password} autocomplete="new-password" minlength="10" required />
+        <Field label="Passwort" id="setup-pass" hint={passwordError ? '' : `Mindestens ${PASSWORD_MIN_LENGTH} Zeichen. Ein Satz ist besser als ein Wort.`} error={passwordError} required>
+          <input id="setup-pass" class="input" type="password" bind:value={password} autocomplete="new-password" minlength={PASSWORD_MIN_LENGTH} required on:blur={() => (passwordTouched = true)} />
         </Field>
-        <Field label="Passwort wiederholen" id="setup-repeat" error={mismatch ? 'Die Passwörter stimmen nicht überein.' : ''} required>
-          <input id="setup-repeat" class="input" type="password" bind:value={repeat} autocomplete="new-password" required />
+        <Field label="Passwort wiederholen" id="setup-repeat" error={repeatError} required>
+          <input id="setup-repeat" class="input" type="password" bind:value={repeat} autocomplete="new-password" required on:blur={() => (repeatTouched = true)} />
         </Field>
         <Field label="Setup-Token" id="setup-token" hint="Nur nötig, wenn die Instanz mit ONEB…-Token gestartet wurde.">
           <input id="setup-token" class="input" bind:value={setupToken} autocomplete="off" />
