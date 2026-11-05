@@ -141,9 +141,9 @@ Ablauf beim Klick auf **Jetzt aktualisieren**:
 4. Sobald der neue Container läuft und keine Wartung mehr aktiv ist, leitet die
    Wartungsseite automatisch zurück zur Startseite.
 
-Damit die Prüfung funktioniert, muss `ONEB_VERSION` zur veröffentlichten
-Version passen (Git-Tag ohne `v`, z. B. `1.4.0`). Ist die Variable nicht
-gesetzt, gilt `0.1.0`.
+Damit die Prüfung funktioniert, wird `ONEB_VERSION` beim Bauen des Images aus
+dem Git-Tag gesetzt (bei Branch-Builds `0.1.0`). Die Variable kann bei Bedarf in
+Compose überschrieben werden, normalerweise ist das nicht nötig.
 
 Wichtige Variablen:
 

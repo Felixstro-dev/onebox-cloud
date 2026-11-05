@@ -23,8 +23,9 @@ services:
       - BASE_URL=${BASE_URL:-}
       # Optional: verhindert die Ersteinrichtung durch Dritte (min. 16 Zeichen).
       - SETUP_TOKEN=${SETUP_TOKEN:-}
-      # Versionsnummer für die Update-Prüfung (muss zum Git-Tag passen).
-      - ONEB_VERSION=${ONEB_VERSION:-0.1.0}
+      # Versionsnummer für die Update-Prüfung. Wird normalerweise aus dem
+      # Image übernommen; nur zum Testen überschreiben.
+      # - ONEB_VERSION=0.1.0
       # Interner Updater (Watchtower). Das Token schützt die Update-API.
       - UPDATE_API_URL=http://onebox-updater:8080/v1/update
       - UPDATE_API_TOKEN=${UPDATE_API_TOKEN:-change-me-to-a-long-random-string}
