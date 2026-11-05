@@ -32,7 +32,7 @@ WORKDIR /app
 
 # SQLite-CLI für Wartung und Backup-Jobs, poppler-utils für PDF-Thumbnails.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends sqlite3 poppler-utils \
+  && apt-get install -y --no-install-recommends gosu sqlite3 poppler-utils \
   && rm -rf /var/lib/apt/lists/* \
   && mkdir -p /data/files /data/uploads /data/thumbs /data/snapshots /data/backups /data/agent /data/runtime \
   && chown -R node:node /data
@@ -55,14 +55,16 @@ COPY --from=build --chown=node:node /app/server ./server
 COPY --from=build --chown=node:node /app/addons ./addons
 COPY --from=build --chown=node:node /app/agent ./agent
 COPY --from=build --chown=node:node /app/scripts ./scripts
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod 0755 /usr/local/bin/docker-entrypoint.sh
 
-# Der Container läuft als Nicht-Root-Nutzer (UID 1000, identisch mit dem
-# Standardbenutzer der meisten Hosts). Beschreibbar ist nur /data.
-USER node
+# Der Entrypoint läuft kurz als Root, um Bind-Mounts zu initialisieren, und
+# startet den Node-Prozess anschließend dauerhaft als Nicht-Root-Nutzer.
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 VOLUME ["/data"]
 
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD ["node", "-e", "fetch('http://127.0.0.1:8080/api/v1/system/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+  CMD ["gosu", "node:node", "node", "-e", "fetch('http://127.0.0.1:8080/api/v1/system/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 
 CMD ["node", "server/index.js"]

@@ -66,7 +66,9 @@ docker compose up -d
   - `data/thumbs/` (Miniaturen)
   - `data/snapshots/` (DB-Backups vor Migrationen)
 
-**Ändere niemals das Volume manuell.** Bei Updates einfach Container neustarten – die Daten bleiben erhalten.
+Der Container initialisiert neue und bestehende Mounts beim Start und setzt
+deren Besitz auf `node:node` (UID/GID 1000). **Ändere das Volume nicht manuell.**
+Bei Updates einfach den Container neu starten – die Daten bleiben erhalten.
 
 ## 5. Updates durchführen
 

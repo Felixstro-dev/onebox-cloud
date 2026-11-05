@@ -73,14 +73,16 @@ zwar, verlieren aber Besitzer- und Rechteinformationen und sind für die
 Datenbank nicht geeignet. Für die Onebox-Daten immer ein Linux-Dateisystem
 verwenden.
 
-### 2. Ordner anlegen und Rechte setzen
+### 2. Ordner anlegen und einbinden
 
-Der Container läuft als Benutzer `node` mit **UID/GID 1000**. Der Host-Ordner
-muss für diese IDs beschreibbar sein:
+Der Container initialisiert den Bind-Mount beim Start automatisch. Der
+Entrypoint läuft dafür kurz als Root, legt die benötigten Unterordner an und
+überträgt den Besitz auf `node:node` (**UID/GID 1000**). Der Node-Prozess läuft
+danach weiterhin als Nicht-Root. Vorhandene Dateien werden nicht gelöscht oder
+überschrieben:
 
 ```bash
 sudo mkdir -p /mnt/onebox-drive/onebox
-sudo chown -R 1000:1000 /mnt/onebox-drive/onebox
 ```
 
 ### 3. Volume in `docker-compose.yml` eintragen
@@ -96,6 +98,11 @@ Danach neu starten:
 ```bash
 docker compose up -d
 ```
+
+Bei einem Read-only-, Netzwerk- oder nicht-POSIX-Dateisystem kann Docker den
+Besitz nicht übertragen. Onebox beendet sich dann mit dem betroffenen Pfad
+und dem Hinweis auf `1000:1000`; passe in diesem Fall den Host-Mount an. Ein
+pauschales `chmod 777` ist nicht erforderlich.
 
 ### 4. Speicherort in Onebox aktivieren
 
