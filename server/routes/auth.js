@@ -54,7 +54,21 @@ export async function registerAuthRoutes(app) {
       },
     },
   }, async (req, reply) => {
-    if (config.setupToken && req.body.setupToken !== config.setupToken) throw unauthorized('Setup token is wrong.');
+    const setupCompleted = userCount() > 0;
+    if (setupCompleted) {
+      req.log.info({ event: 'setup.already_completed' }, 'Setup request rejected because setup is already completed.');
+      throw badRequest('Setup has already been completed.');
+    }
+    if (config.setupToken && req.body.setupToken !== config.setupToken) {
+      req.log.warn({
+        event: 'setup.token_rejected',
+        configured: true,
+        provided: typeof req.body.setupToken === 'string',
+        providedLength: typeof req.body.setupToken === 'string' ? req.body.setupToken.length : 0,
+        configuredLength: config.setupToken.length,
+      }, 'Setup token rejected; token values are never logged.');
+      throw unauthorized('Setup token is wrong.');
+    }
     const username = req.body.username.trim();
     if (!/^[a-zA-Z0-9._-]+$/.test(username)) throw badRequest('Username may only use letters, numbers, dots, dashes, and underscores.');
     const passwordHash = await hashPassword(req.body.password);

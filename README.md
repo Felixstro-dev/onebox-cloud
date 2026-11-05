@@ -322,6 +322,18 @@ ohne Release findet die Update-Prüfung keine neue Version.
 - **Seite nicht erreichbar:** `docker compose logs -f onebox` prüfen.
 - **Update-Button deaktiviert:** Läuft `onebox-updater`? Ist
   `UPDATE_API_TOKEN` in `.env` gesetzt und gleich für beide Container?
+- **`onebox-updater` startet ständig neu:** Prüfe, ob noch ein alter
+  `containrrr/watchtower:1.7.1`-Container existiert. Die aktuelle Compose-Datei
+  verwendet `nickfedor/watchtower:1.24.0` mit Docker-API-Version `1.44`.
+  Aktualisiere und erzwinge die Neuerstellung des Updaters:
+
+  ```bash
+  docker compose pull onebox-updater
+  docker compose up -d --force-recreate onebox-updater
+  docker inspect onebox-updater --format '{{.Config.Image}}'
+  ```
+
+  Die letzte Ausgabe muss mit `nickfedor/watchtower:1.24.0@sha256:` beginnen.
 - **Speicherort nicht akzeptiert:** Pfad muss im Container existieren und für
   UID 1000 beschreibbar sein.
 - **Nach einem Update hängt die Wartungsseite:** `docker compose ps` prüfen und
