@@ -4,7 +4,7 @@ import { db, schema } from '../db/index.js';
 import { requireUser, requireAdmin } from '../services/auth.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { id, token, hashToken } from '../lib/ids.js';
-import { executeRun, restoreRun, agentRoot, ensureFolder } from '../services/backups.js';
+import { executeRun, restoreRun, agentRoot, ensureFolder, ensureLocalTarget } from '../services/backups.js';
 import { jobs } from '../services/runtime.js';
 import { getSetting, setSetting } from '../services/settings.js';
 import { activity } from '../services/nodes.js';
@@ -42,7 +42,13 @@ export async function registerBackupRoutes(app) {
     const user = requireUser(req);
     const cfg = req.body.targetConfig || {};
     if (req.body.targetType === 'onebox' && (!cfg.url || !cfg.token)) throw badRequest('Remote target needs a URL and a receive token.');
-    if (req.body.targetType !== 'onebox' && !cfg.path) throw badRequest('Choose a target directory.');
+    if (req.body.targetType !== 'onebox') {
+      if (!cfg.path) throw badRequest('Choose a target directory.');
+      try { cfg.path = await ensureLocalTarget(cfg.path); } catch (error) {
+        if (error.status) throw error;
+        throw badRequest(`Zielverzeichnis ist nicht beschreibbar: ${error.message}`);
+      }
+    }
     const job = {
       id: id(), ownerId: user.id, name: req.body.name.trim(), sourceNodeId: req.body.sourceNodeId || null,
       targetType: req.body.targetType || 'local', targetConfig: JSON.stringify(cfg), schedule: req.body.schedule || null,
@@ -78,7 +84,17 @@ export async function registerBackupRoutes(app) {
     if (req.body.enabled !== undefined) patch.enabled = req.body.enabled;
     if (req.body.preRun !== undefined) patch.preRun = req.body.preRun;
     if (req.body.postRun !== undefined) patch.postRun = req.body.postRun;
-    if (req.body.targetConfig) patch.targetConfig = JSON.stringify(req.body.targetConfig);
+    if (req.body.targetConfig) {
+      const cfg = { ...req.body.targetConfig };
+      if (job.targetType !== 'onebox') {
+        if (!cfg.path) throw badRequest('Choose a target directory.');
+        try { cfg.path = await ensureLocalTarget(cfg.path); } catch (error) {
+          if (error.status) throw error;
+          throw badRequest(`Zielverzeichnis ist nicht beschreibbar: ${error.message}`);
+        }
+      }
+      patch.targetConfig = JSON.stringify(cfg);
+    }
     db.update(schema.backupJobs).set(patch).where(eq(schema.backupJobs.id, job.id)).run();
     return { ok: true };
   });
@@ -148,13 +164,14 @@ export async function registerBackupRoutes(app) {
         id: agent.id, name: agent.name, tokenPrefix: agent.tokenPrefix, lastSeenAt: agent.lastSeenAt,
         schedule: agent.schedule, enabled: Boolean(agent.enabled), agentVersion: agent.agentVersion || '0.0.0',
         connected: Boolean(agent.lastSeenAt), createdAt: agent.createdAt, rootFolderId: agent.rootFolderId,
+        preRun: agent.preRun || '', postRun: agent.postRun || '', excludes: agent.excludes || '',
         paths: db.select().from(schema.agentPaths).where(eq(schema.agentPaths.agentId, agent.id)).all().map((row) => row.path),
       })),
     };
   });
 
   app.post('/api/v1/backup-agents', {
-    schema: { body: { type: 'object', required: ['name'], properties: { name: { type: 'string', minLength: 1, maxLength: 80 }, paths: { type: 'array', items: { type: 'string' } }, schedule: { type: ['string', 'null'], enum: ['hourly', 'daily', 'weekly', null] }, enabled: { type: 'boolean' } } } },
+    schema: { body: { type: 'object', required: ['name'], properties: { name: { type: 'string', minLength: 1, maxLength: 80 }, paths: { type: 'array', items: { type: 'string' } }, schedule: { type: ['string', 'null'] }, enabled: { type: 'boolean' }, excludes: { type: ['string', 'null'] } } } },
   }, async (req) => {
     const user = requireUser(req);
     const name = req.body.name.trim().replace(/[^\w .-]/g, '').slice(0, 60) || 'Server';
@@ -174,13 +191,15 @@ export async function registerBackupRoutes(app) {
   });
 
   app.patch('/api/v1/backup-agents/:id/paths', {
-    schema: { body: { type: 'object', required: ['paths'], properties: { paths: { type: 'array', items: { type: 'string' } }, schedule: { type: ['string', 'null'] }, enabled: { type: 'boolean' }, preRun: { type: ['string', 'null'] }, postRun: { type: ['string', 'null'] } } } },
+    schema: { body: { type: 'object', properties: { paths: { type: 'array', items: { type: 'string' } }, schedule: { type: ['string', 'null'] }, enabled: { type: 'boolean' }, preRun: { type: ['string', 'null'] }, postRun: { type: ['string', 'null'] }, excludes: { type: ['string', 'null'] } } } },
   }, async (req, reply) => {
     const user = requireUser(req);
     const agent = db.select().from(schema.backupAgents).where(and(eq(schema.backupAgents.id, req.params.id), eq(schema.backupAgents.ownerId, user.id))).get();
     if (!agent) throw notFound('Agent not found.');
-    db.delete(schema.agentPaths).where(eq(schema.agentPaths.agentId, agent.id)).run();
-    for (const p of req.body.paths) db.insert(schema.agentPaths).values({ id: id(), agentId: agent.id, path: p }).run();
+    if (req.body.paths !== undefined) {
+      db.delete(schema.agentPaths).where(eq(schema.agentPaths.agentId, agent.id)).run();
+      for (const p of req.body.paths) db.insert(schema.agentPaths).values({ id: id(), agentId: agent.id, path: p }).run();
+    }
     const updates = {};
     if (req.body.schedule !== undefined) updates.schedule = req.body.schedule;
     if (req.body.enabled !== undefined) updates.enabled = req.body.enabled ? 1 : 0;

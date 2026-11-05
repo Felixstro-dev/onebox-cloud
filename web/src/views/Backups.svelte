@@ -14,6 +14,7 @@
 
   let jobs = [];
   let agents = [];
+  let locations = [];
   let loading = true;
   let failed = '';
   let saving = false;
@@ -26,19 +27,23 @@
   let agentCommand = '';
   let agentScript = '';
 
-  let jobOpen = false;
-  let jobForm = blankJob();
-  let agentOpen = false;
-  let agentForm = { name: '', paths: '' };
-  let newAgent = null;
+  // Eine gemeinsame Maske für beide Sicherungsarten. Dadurch gibt es nur
+  // einen Einstiegspunkt statt „Auftrag“ und „Agent“ nebeneinander.
+  let createOpen = false;
+  let createType = 'job';
+  let createForm = blankCreate();
+
   let agentEditOpen = false;
-  let agentEdit = null;
+  let agentEditId = null;
+  let agentEditName = '';
   let agentEditPaths = '';
   let agentEditSchedule = '';
   let agentEditEnabled = true;
   let agentEditPre = '';
   let agentEditPost = '';
   let agentEditExcludes = '';
+  let newAgent = null;
+
   let restoreRun = null;
   let restorePreview = null;
   let restoreOpen = false;
@@ -46,9 +51,35 @@
   let restoreParent = null;
   let restoreDone = null;
 
-  function blankJob() {
-    return { name: '', sourceNodeId: null, sourceName: 'Meine Dateien', targetType: 'local', path: './backups', url: '', token: '', schedule: null, retention: 7, enabled: true, preRun: '', postRun: '', version: '' };
+  const scheduleOptions = [
+    { value: '', label: 'Nur manuell' },
+    { value: 'hourly', label: 'Stündlich' },
+    { value: 'daily', label: 'Täglich' },
+    { value: 'weekly', label: 'Wöchentlich' },
+  ];
+  const PATH_PLACEHOLDER = '/home/benutzer/Dokumente\n/home/benutzer/Fotos';
+  const EXCLUDES_PLACEHOLDER = 'node_modules\n.git\n*.tmp';
+
+  function blankCreate() {
+    return {
+      name: '',
+      sourceNodeId: null,
+      sourceName: 'Meine Dateien',
+      targetType: 'local',
+      path: '/data/backups',
+      url: '',
+      token: '',
+      schedule: 'daily',
+      retention: 7,
+      enabled: true,
+      preRun: '',
+      postRun: '',
+      paths: '',
+      excludes: '',
+    };
   }
+
+  $: pathSuggestions = buildPathSuggestions(locations);
 
   onMount(load);
 
@@ -56,40 +87,79 @@
     loading = true;
     failed = '';
     try {
-      const [j, a, r] = await Promise.all([
+      const [j, a, r, s] = await Promise.all([
         get('/api/v1/backups/jobs'),
         get('/api/v1/backup-agents'),
         $user?.role === 'admin' ? get('/api/v1/backups/receive-token') : Promise.resolve({ configured: false }),
+        get('/api/v1/storage/locations').catch(() => ({ locations: [] })),
       ]);
       jobs = j.items;
       agents = a.items;
       receive = r;
+      locations = s.locations || [];
     } catch (err) { failed = err.message; } finally { loading = false; }
   }
 
-  function openNewJob() {
-    jobForm = blankJob();
-    jobOpen = true;
+  function buildPathSuggestions(list) {
+    const paths = new Set(['/data/backups', '/backups']);
+    for (const location of list) {
+      if (location?.rootPath) paths.add(location.rootPath.replace(/\/$/, '') + '/backups');
+    }
+    return [...paths];
   }
 
-  async function createJob() {
-    if (!jobForm.name.trim()) return;
+  function openCreate(type = 'job') {
+    createType = type;
+    createForm = blankCreate();
+    createOpen = true;
+  }
+
+  function lines(value) {
+    return String(value || '').split('\n').map((line) => line.trim()).filter(Boolean);
+  }
+
+  async function submitCreate() {
+    if (!createForm.name.trim()) return;
     saving = true;
     try {
-      const targetConfig = jobForm.targetType === 'onebox'
-        ? { url: jobForm.url.trim(), token: jobForm.token.trim() }
-        : { path: jobForm.path.trim() };
-      await post('/api/v1/backups/jobs', {
-        name: jobForm.name.trim(),
-        sourceNodeId: jobForm.sourceNodeId || null,
-        targetType: jobForm.targetType,
-        targetConfig,
-        schedule: jobForm.schedule || null,
-        retention: Number(jobForm.retention) || 7,
-        enabled: jobForm.enabled,
-      });
-      notify('Backup-Auftrag angelegt. Der erste Lauf startet auf Knopfdruck.', 'success');
-      jobOpen = false;
+      if (createType === 'agent') {
+        const result = await post('/api/v1/backup-agents', {
+          name: createForm.name.trim(),
+          paths: lines(createForm.paths),
+          schedule: createForm.schedule || null,
+          enabled: createForm.enabled,
+          excludes: createForm.excludes || null,
+        });
+        newAgent = result.agent;
+        createOpen = false;
+        const base = window.location.origin;
+        const scriptPath = '/pfad/zu/onebox/agent/bin/onebox-backup.js';
+        agentCommand = `ONEBOX_AGENT_URL=${base} ONEBOX_AGENT_TOKEN=${result.agent.token} node ${scriptPath}`;
+        agentScript = [
+          '#!/bin/sh',
+          '# Onebox Backup Agent – auf dem Quellrechner ausführen',
+          `export ONEBOX_AGENT_URL=${base}`,
+          `export ONEBOX_AGENT_TOKEN=${result.agent.token}`,
+          `exec node ${scriptPath}`,
+        ].join('\n');
+      } else {
+        const targetConfig = createForm.targetType === 'onebox'
+          ? { url: createForm.url.trim(), token: createForm.token.trim() }
+          : { path: createForm.path.trim() };
+        await post('/api/v1/backups/jobs', {
+          name: createForm.name.trim(),
+          sourceNodeId: createForm.sourceNodeId || null,
+          targetType: createForm.targetType,
+          targetConfig,
+          schedule: createForm.schedule || null,
+          retention: Number(createForm.retention) || 7,
+          enabled: createForm.enabled,
+          preRun: createForm.preRun.trim() || null,
+          postRun: createForm.postRun.trim() || null,
+        });
+        notify('Sicherung angelegt. Der erste Lauf startet auf Knopfdruck.', 'success');
+        createOpen = false;
+      }
       load();
     } catch (err) { notify(err.message, 'error'); } finally { saving = false; }
   }
@@ -98,8 +168,8 @@
     runningId = job.id;
     try {
       const result = await post(`/api/v1/backups/jobs/${job.id}/run`, {});
-      if (result.run?.status === 'success') notify(`Backup „${job.name}“ abgeschlossen: ${result.run.fileCount} Dateien, ${bytes(result.run.size)}.`, 'success');
-      else notify(`Backup „${job.name}“: ${result.run?.error || 'Lauf beendet.'}`, result.run?.status === 'success' ? 'success' : 'error', 8000);
+      if (result.run?.status === 'success') notify(`Sicherung „${job.name}“ abgeschlossen: ${result.run.fileCount} Dateien, ${bytes(result.run.size)}.`, 'success');
+      else notify(`Sicherung „${job.name}“: ${result.run?.error || 'Lauf beendet.'}`, result.run?.status === 'success' ? 'success' : 'error', 8000);
       load();
     } catch (err) { notify(err.message, 'error'); } finally { runningId = null; }
   }
@@ -113,14 +183,14 @@
   }
 
   async function deleteJob(job) {
-    const ok = await confirmAction({ title: `Auftrag „${job.name}“ löschen?`, description: 'Bereits erzeugte Sicherungen bleiben auf dem Ziel erhalten.', confirmLabel: 'Auftrag löschen', danger: true });
+    const ok = await confirmAction({ title: `Sicherung „${job.name}“ löschen?`, description: 'Bereits erzeugte Sicherungen bleiben auf dem Ziel erhalten.', confirmLabel: 'Sicherung löschen', danger: true });
     if (!ok) return;
-    try { await del(`/api/v1/backups/jobs/${job.id}`); notify('Auftrag gelöscht.', 'success'); load(); } catch (err) { notify(err.message, 'error'); }
+    try { await del(`/api/v1/backups/jobs/${job.id}`); notify('Sicherung gelöscht.', 'success'); load(); } catch (err) { notify(err.message, 'error'); }
   }
 
   async function openRestore(job, chosen = null) {
     const success = chosen || job.runs.find((run) => run.status === 'success');
-    if (!success) { notify('Für diesen Auftrag gibt es noch keinen erfolgreichen Lauf.', 'warning'); return; }
+    if (!success) { notify('Für diese Sicherung gibt es noch keinen erfolgreichen Lauf.', 'warning'); return; }
     if (success.status !== 'success') { notify('Nur erfolgreiche Läufe lassen sich wiederherstellen.', 'warning'); return; }
     restoreRun = success;
     restoreDone = null;
@@ -141,47 +211,31 @@
     } catch (err) { notify(err.message, 'error'); } finally { restoreBusy = false; }
   }
 
-  async function createAgent() {
-    if (!agentForm.name.trim()) return;
-    saving = true;
-    try {
-      const result = await post('/api/v1/backup-agents', {
-        name: agentForm.name.trim(),
-        paths: agentForm.paths.split('\n').map((line) => line.trim()).filter(Boolean),
-      });
-      newAgent = result.agent;
-      agentOpen = false;
-      try {
-        await post('/api/v1/backups/jobs', {
-          name: agentForm.name.trim() + ' Backup',
-          sourceNodeId: result.agent.rootFolderId,
-          targetType: 'local',
-          targetConfig: { path: './backups' },
-          retention: 7,
-          enabled: true,
-          schedule: agentForm.paths ? null : 'manual',
-        });
-      } catch (e) { console.error('Auto-Job:', e.message); }
-      const agentPath = '/home/felix/Dokumente/Programmieren/onebox-cloud/agent/bin/onebox-backup.js';
-      agentCommand = `ONEB` + `OX_AGENT_URL=${window.location.origin} ONEB` + `OX_AGENT_TOKEN=${result.agent.token} node ${agentPath}`;
-      agentScript = [
-        '#!/bin/sh',
-        '# Onebox Backup Agent',
-        `export ONEBOX_AGENT_URL=${window.location.origin}`,
-        `export ONEBOX_AGENT_TOKEN=${result.agent.token}`,
-        `exec node /home/felix/Dokumente/Programmieren/onebox-cloud/agent/bin/onebox-backup.js`,
-      ].join('\n');
-      load();
-    } catch (err) { notify(err.message, 'error'); } finally { saving = false; }
+  function openAgentEditor(agent) {
+    agentEditId = agent.id;
+    agentEditName = agent.name;
+    agentEditPaths = agent.paths?.join('\n') || '';
+    agentEditSchedule = agent.schedule || '';
+    agentEditEnabled = agent.enabled !== false;
+    agentEditPre = agent.preRun || '';
+    agentEditPost = agent.postRun || '';
+    agentEditExcludes = agent.excludes || '';
+    agentEditOpen = true;
   }
 
-  async function saveAgentPaths() {
-    if (!agentEdit) return;
+  async function saveAgent() {
+    if (!agentEditId) return;
     saving = true;
     try {
-      await patch(`/api/v1/backup-agents/${agentEdit.id}/paths`, { paths: agentEditPaths.split('\n').map((line) => line.trim()).filter(Boolean), schedule: agentEditSchedule || null, enabled: agentEditEnabled, preRun: agentEditPre || null, postRun: agentEditPost || null, excludes: agentEditExcludes || null });
+      await patch(`/api/v1/backup-agents/${agentEditId}/paths`, {
+        paths: lines(agentEditPaths),
+        schedule: agentEditSchedule || null,
+        enabled: agentEditEnabled,
+        preRun: agentEditPre || null,
+        postRun: agentEditPost || null,
+        excludes: agentEditExcludes || null,
+      });
       notify('Agent-Konfiguration aktualisiert.', 'success');
-      agentEdit = null;
       agentEditOpen = false;
       load();
     } catch (err) { notify(err.message, 'error'); } finally { saving = false; }
@@ -191,6 +245,18 @@
     const ok = await confirmAction({ title: `Agent „${agent.name}“ entfernen?`, description: 'Der Agent kann danach keine Dateien mehr hochladen.', confirmLabel: 'Entfernen', danger: true });
     if (!ok) return;
     try { await del(`/api/v1/backup-agents/${agent.id}`); notify('Agent entfernt.', 'success'); load(); } catch (err) { notify(err.message, 'error'); }
+  }
+
+  async function makeJobFromAgent(agent) {
+    if (!agent) return;
+    agentEditOpen = false;
+    createForm = blankCreate();
+    createType = 'job';
+    createForm.name = `${agent.name} sichern`;
+    createForm.sourceNodeId = agent.rootFolderId;
+    createForm.sourceName = agent.name;
+    createForm.schedule = agent.schedule || 'daily';
+    createOpen = true;
   }
 
   async function generateReceive() {
@@ -222,11 +288,11 @@
   <header class="page-head">
     <div>
       <h1>Backups</h1>
-      <p class="lede">Sichere Ordner auf eine lokale Festplatte oder an eine andere Onebox-Instanz. Wiederherstellungen landen in einem eigenen Ordner.</p>
+      <p class="lede">Sichere Ordner auf eine lokale Festplatte, eine andere Onebox oder von einem anderen Rechner hierher.</p>
     </div>
     <div class="page-actions">
-      <Button variant="secondary" icon="server" onclick={() => { agentOpen = true; agentForm = { name: '', paths: '' }; }}>Agent verbinden</Button>
-      <Button variant="primary" icon="plus" onclick={openNewJob}>Backup-Auftrag</Button>
+      <Button variant="secondary" icon="server" onclick={() => openCreate('agent')}>Rechner verbinden</Button>
+      <Button variant="primary" icon="plus" onclick={() => openCreate('job')}>Neue Sicherung</Button>
     </div>
   </header>
 
@@ -236,9 +302,9 @@
     <div class="list-stack"><div class="card loading-block"><span class="skeleton"></span><span class="skeleton"></span></div></div>
   {:else}
     <section aria-labelledby="jobs-title">
-      <div class="section-head"><h2 id="jobs-title">Aufträge</h2><span class="tag">{jobs.length}</span></div>
+      <div class="section-head"><h2 id="jobs-title">Sicherungen</h2><span class="tag">{jobs.length}</span></div>
       {#if !jobs.length}
-        <EmptyState icon="database-backup" title="Noch kein Backup eingerichtet" text="Lege einen Auftrag an und sichere einen Ordner – manuell oder nach Zeitplan." action={openNewJob} actionLabel="Ersten Auftrag anlegen" />
+        <EmptyState icon="database-backup" title="Noch keine Sicherung eingerichtet" text="Wähle einen Ordner und ein Ziel – manuell oder nach Zeitplan." action={() => openCreate('job')} actionLabel="Erste Sicherung anlegen" />
       {:else}
         <div class="list-stack">
           {#each jobs as job (job.id)}
@@ -250,7 +316,7 @@
                   <span class="tag tag--{job.enabled ? 'success' : 'warning'}">{job.enabled ? 'Aktiv' : 'Pausiert'}</span>
                   <span class="tag">{scheduleLabel(job.schedule)}</span>
                 </div>
-                <p>{job.targetType === 'onebox' ? 'Remote' : 'Lokal'} · {targetLabel(job)} · Aufbewahrung {job.retention} Läufe</p>
+                <p>{job.targetType === 'onebox' ? 'Andere Onebox' : 'Lokaler Ordner'} · {targetLabel(job)} · Aufbewahrung {job.retention} Läufe</p>
                 <div class="row-card__meta" style="margin-top:var(--space-2)">
                   {#if job.lastRunAt}<span>Letzter Lauf {relative(job.lastRunAt)}</span>{:else}<span>Noch nicht gelaufen</span>{/if}
                   {#if job.runs?.[0]}
@@ -268,9 +334,9 @@
                           {#each job.runs as run}
                             <tr>
                               <td>{dateTime(run.createdAt)}</td>
-                              <td><span class="tag tag--{run.status === 'success' ? 'success' : run.status === 'error' ? 'error' : 'warning'}">{run.status}</span></td>
+                              <td><span class="tag tag--{run.status === 'success' ? 'success' : run.status === 'running' ? 'warning' : 'error'}">{run.status}</span></td>
                               <td>{run.fileCount} Dateien · {bytes(run.size)}</td>
-                              <td class="actions-cell"><Button variant="quiet" size="sm" onclick={() => openRestore(job, run)}>Wiederherstellen</Button></td>
+                              <td class="actions-cell"><Button variant="quiet" size="sm" disabled={run.status !== 'success'} onclick={() => openRestore(job, run)}>Wiederherstellen</Button></td>
                             </tr>
                           {/each}
                         </tbody>
@@ -284,7 +350,7 @@
                 <Button variant="secondary" size="sm" icon="history" onclick={() => openRestore(job)}>Wiederherstellen</Button>
                 <div style="display:flex;gap:var(--space-2);align-items:center;justify-content:space-between">
                   <Switch checked={job.enabled} label="Aktiv" on:change={(event) => toggleJob(job, event.detail)} />
-                  <IconButton name="trash-2" label={`Auftrag ${job.name} löschen`} onclick={() => deleteJob(job)} />
+                  <IconButton name="trash-2" label={`Sicherung ${job.name} löschen`} onclick={() => deleteJob(job)} />
                 </div>
               </div>
             </article>
@@ -294,8 +360,8 @@
     </section>
 
     <section class="section" aria-labelledby="agents-title">
-      <div class="section-head"><h2 id="agents-title">Backup-Agenten</h2><span class="tag">{agents.length}</span></div>
-      <p class="lede" style="margin-bottom:var(--space-4)">Agenten sichern Ordner von anderen Rechnern in diese Instanz. Jeder Agent hat ein eigenes Token und einen eigenen Zielordner.</p>
+      <div class="section-head"><h2 id="agents-title">Andere Rechner</h2><span class="tag">{agents.length}</span></div>
+      <p class="lede" style="margin-bottom:var(--space-4)">Ein Agent läuft auf einem anderen Rechner und lädt dessen Ordner nach Onebox. Du brauchst dafür keinen zusätzlichen Backup-Auftrag.</p>
       {#if agents.length}
         <div class="list-stack">
           {#each agents as agent}
@@ -303,30 +369,22 @@
               <span class="file-icon" aria-hidden="true"><Icon name="server" size={18} /></span>
               <div class="row-card__main">
                 <h3>{agent.name}</h3>
-                <p>Token {agent.tokenPrefix}… · {agent.paths?.length ? agent.paths.join(', ') : 'keine Pfade hinterlegt'}</p>
+                <p>{agent.paths?.length ? agent.paths.join(', ') : 'keine Pfade hinterlegt'}</p>
                 <div class="row-card__meta" style="margin-top:var(--space-2)">
-                  <span class="tag tag--{agent.connected ? 'success' : 'error'}">{agent.connected ? 'Verbunden' : 'Connecting'}</span>
-                  {#if agent.agentVersion && agent.agentVersion !== '1.0.0'}<span class="tag tag--warning">v{agent.agentVersion}</span>{:else}<span class="tag">v{agent.agentVersion || '1.0.0'}</span>{/if}
+                  <span class="tag tag--{agent.connected ? 'success' : 'warning'}">{agent.connected ? 'Verbunden' : 'Noch nicht verbunden'}</span>
+                  <span class="tag">{scheduleLabel(agent.schedule)}</span>
                   <span>{agent.lastSeenAt ? `Zuletzt gesehen ${relative(agent.lastSeenAt)}` : 'Noch nie verbunden'}</span>
-                  <span>Angelegt {dateTime(agent.createdAt)}</span>
                 </div>
               </div>
               <div style="display:flex;gap:var(--space-2);align-items:center">
-                <Button variant="primary" size="sm" icon="play" onclick={async () => {
-                  try {
-                    const j = await post('/api/v1/backups/jobs', { name: agent.name + ' Backup', sourceNodeId: agent.rootFolderId, targetType: 'local', path: './backups', enabled: true });
-                    await post(`/api/v1/backups/jobs/${j.job.id}/run`, {});
-                    notify('Backup gestartet.', 'success'); load();
-                  } catch (err) { notify(err.message, 'error'); }
-                }}>Jetzt sichern</Button>
-                <IconButton name="pencil" label={`Agent ${agent.name} konfigurieren`} onclick={() => { agentEdit = agent; agentEditPaths = agent.paths?.join('\n') || ''; agentEditSchedule = agent.schedule || ''; agentEditEnabled = agent.enabled !== false; agentEditPre = agent.preRun || ''; agentEditPost = agent.postRun || ''; agentEditExcludes = agent.excludes || ''; agentEditOpen = true; }} />
+                <IconButton name="pencil" label={`Agent ${agent.name} konfigurieren`} onclick={() => openAgentEditor(agent)} />
                 <IconButton name="trash-2" label={`Agent ${agent.name} entfernen`} onclick={() => revokeAgent(agent)} />
               </div>
             </article>
           {/each}
         </div>
       {:else}
-        <EmptyState icon="server" title="Keine Agenten verbunden" text="Verbinde einen Rechner, um dessen Ordner automatisch in Onebox zu sichern." action={() => { agentOpen = true; agentForm = { name: '', paths: '' }; }} actionLabel="Agent anlegen" compact />
+        <EmptyState icon="server" title="Keine Rechner verbunden" text="Verbinde einen Rechner, um dessen Ordner automatisch nach Onebox zu sichern." action={() => openCreate('agent')} actionLabel="Rechner verbinden" compact />
       {/if}
     </section>
 
@@ -334,7 +392,7 @@
       <section class="section" aria-labelledby="receive-title">
         <div class="section-head"><h2 id="receive-title">Diese Instanz als Backup-Ziel</h2></div>
         <div class="card" style="display:grid;gap:var(--space-4)">
-          <p class="lede">Erzeuge ein Empfangs-Token, damit andere Onebox-Instanzen hierher sichern können. Das Token gilt für alle Remote-Aufträge dieser Instanz.</p>
+          <p class="lede">Erzeuge ein Empfangs-Token, damit andere Onebox-Instanzen hierher sichern können. Das Token gilt für alle Remote-Sicherungen dieser Instanz.</p>
           {#if newReceiveToken}
             <div class="token-reveal">
               <strong>Empfangs-Token</strong>
@@ -356,64 +414,79 @@
   {/if}
 </div>
 
-<Dialog open={jobOpen} title="Backup-Auftrag anlegen" description="Wähle Quelle, Ziel und Rhythmus." size="lg" onclose={() => (jobOpen = false)}>
-  <Field label="Name" id="job-name" required>
-    <input id="job-name" class="input" bind:value={jobForm.name} placeholder="z. B. Projektarchiv" />
-  </Field>
-  <FolderPicker onchange={(folder) => { jobForm.sourceNodeId = folder.id; jobForm.sourceName = folder.name; }} />
+<datalist id="backup-path-options">
+  {#each pathSuggestions as path}
+    <option value={path}></option>
+  {/each}
+</datalist>
+
+<Dialog open={createOpen} title={createType === 'agent' ? 'Rechner verbinden' : 'Neue Sicherung'} description={createType === 'agent' ? 'Der Agent läuft auf dem Quellrechner und lädt dessen Ordner nach Onebox.' : 'Wähle Quelle, Ziel und Rhythmus.'} size="lg" onclose={() => (createOpen = false)}>
   <div class="field">
-    <span class="field__label">Ziel</span>
-    <div class="segmented" role="group" aria-label="Backup-Ziel">
-      <button type="button" aria-pressed={jobForm.targetType === 'local'} on:click={() => (jobForm.targetType = 'local')}>Lokaler Ordner</button>
-      <button type="button" aria-pressed={jobForm.targetType === 'onebox'} on:click={() => (jobForm.targetType = 'onebox')}>Andere Onebox</button>
+    <span class="field__label">Was soll gesichert werden?</span>
+    <div class="segmented" role="group" aria-label="Art der Sicherung">
+      <button type="button" aria-pressed={createType === 'job'} on:click={() => (createType = 'job')}>Ordner in Onebox</button>
+      <button type="button" aria-pressed={createType === 'agent'} on:click={() => (createType = 'agent')}>Ordner von anderem Rechner</button>
     </div>
   </div>
-  {#if jobForm.targetType === 'local'}
-    <Field label="Zielverzeichnis" id="job-path" hint="Pfad im Container, z. B. /backups. Das Verzeichnis muss beschreibbar sein." required>
-      <input id="job-path" class="input" bind:value={jobForm.path} placeholder="./backups" />
+
+  <Field label="Name" id="create-name" required>
+    <input id="create-name" class="input" bind:value={createForm.name} placeholder={createType === 'agent' ? 'z. B. Heimserver' : 'z. B. Projektarchiv'} />
+  </Field>
+
+  {#if createType === 'agent'}
+    <Field label="Quellordner auf dem Rechner" id="create-paths" hint="Ein echter Pfad pro Zeile, z. B. /home/benutzer/Dokumente.">
+      <textarea id="create-paths" class="textarea" bind:value={createForm.paths} placeholder={PATH_PLACEHOLDER}></textarea>
+    </Field>
+    <Field label="Ausschlussmuster" id="create-excludes" hint="Optional, jede Zeile ein Muster, z. B. node_modules oder *.log.">
+      <textarea id="create-excludes" class="textarea" bind:value={createForm.excludes} placeholder={EXCLUDES_PLACEHOLDER}></textarea>
     </Field>
   {:else}
-    <Field label="URL der Ziel-Instanz" id="job-url" required>
-      <input id="job-url" class="input" bind:value={jobForm.url} placeholder="https://cloud.example.com" />
+    <FolderPicker onchange={(folder) => { createForm.sourceNodeId = folder.id; createForm.sourceName = folder.name; }} />
+    <div class="field">
+      <span class="field__label">Ziel</span>
+      <div class="segmented" role="group" aria-label="Backup-Ziel">
+        <button type="button" aria-pressed={createForm.targetType === 'local'} on:click={() => (createForm.targetType = 'local')}>Lokaler Ordner</button>
+        <button type="button" aria-pressed={createForm.targetType === 'onebox'} on:click={() => (createForm.targetType = 'onebox')}>Andere Onebox</button>
+      </div>
+    </div>
+    {#if createForm.targetType === 'local'}
+      <Field label="Zielverzeichnis" id="create-path" hint="Tippe, um Vorschläge zu durchsuchen. Der Ordner wird bei Bedarf angelegt." required>
+        <input id="create-path" class="input" list="backup-path-options" bind:value={createForm.path} placeholder="/data/backups" autocomplete="off" />
+      </Field>
+    {:else}
+      <Field label="URL der Ziel-Instanz" id="create-url" required>
+        <input id="create-url" class="input" bind:value={createForm.url} placeholder="https://cloud.example.com" />
+      </Field>
+      <Field label="Empfangs-Token" id="create-token" required hint="Erzeuge es auf der Ziel-Instanz unter Backups.">
+        <input id="create-token" class="input" type="password" bind:value={createForm.token} autocomplete="off" />
+      </Field>
+    {/if}
+  {/if}
+
+  <Field label="Zeitplan" id="create-schedule">
+    <select id="create-schedule" class="select" bind:value={createForm.schedule}>
+      {#each scheduleOptions as option}
+        <option value={option.value}>{option.label}</option>
+      {/each}
+    </select>
+  </Field>
+
+  {#if createType === 'job'}
+    <Field label="Aufbewahrung" id="create-retention" hint="So viele erfolgreiche Läufe bleiben erhalten.">
+      <input id="create-retention" class="input" type="number" min="1" max="365" bind:value={createForm.retention} />
     </Field>
-    <Field label="Empfangs-Token" id="job-token" required hint="Erzeuge es auf der Ziel-Instanz unter Backups.">
-      <input id="job-token" class="input" type="password" bind:value={jobForm.token} autocomplete="off" />
+    <Field label="Befehl vor der Sicherung" id="create-prerun" hint="Optional, wird auf dem Onebox-Server ausgeführt.">
+      <textarea id="create-prerun" class="textarea" bind:value={createForm.preRun} placeholder="systemctl stop mc-server"></textarea>
+    </Field>
+    <Field label="Befehl nach der Sicherung" id="create-postrun" hint="Optional, wird auf dem Onebox-Server ausgeführt.">
+      <textarea id="create-postrun" class="textarea" bind:value={createForm.postRun} placeholder="systemctl start mc-server"></textarea>
     </Field>
   {/if}
-  <div class="field">
-    <span class="field__label">Zeitplan</span>
-    <input class="input" bind:value={jobForm.schedule} placeholder="manual / daily / 01:00" aria-label="Zeitplan" />
-  </div>
-  <Field label="Aufbewahrung" id="job-retention" hint="So viele erfolgreiche Läufe bleiben erhalten.">
-    <input id="job-retention" class="input" type="number" min="1" max="365" bind:value={jobForm.retention} />
-  </Field>
-  <Field label="Version / Tags" id="job-version" hint="z. B. v1.2 — wird im Ordnernamen verwendet.">
-    <input id="job-version" class="input" bind:value={jobForm.version} placeholder="v1" />
-  </Field>
-  <Field label="Befehl vor Backup" id="job-prerun" hint="z. B. systemctl stop minecraft
-Wird direkt auf dem Server ausgeführt.">
-    <textarea id="job-prerun" class="textarea" bind:value={jobForm.preRun} placeholder="systemctl stop mc-server"></textarea>
-  </Field>
-  <Field label="Befehl nach Backup" id="job-postrun" hint="z. B. systemctl start minecraft">
-    <textarea id="job-postrun" class="textarea" bind:value={jobForm.postRun} placeholder="systemctl start mc-server"></textarea>
-  </Field>
-  <Switch bind:checked={jobForm.enabled} label="Auftrag aktiv" description="Pausierte Aufträge laufen nur manuell." />
-  <svelte:fragment slot="footer">
-    <Button variant="quiet" onclick={() => (jobOpen = false)}>Abbrechen</Button>
-    <Button variant="primary" loading={saving} disabled={!jobForm.name.trim()} onclick={createJob}>Auftrag anlegen</Button>
-  </svelte:fragment>
-</Dialog>
 
-<Dialog open={agentOpen} title="Backup-Agent anlegen" description="Der Agent läuft auf dem Quellrechner und lädt Dateien über die API hoch." onclose={() => (agentOpen = false)}>
-  <Field label="Name" id="agent-name" hint="Erscheint als Ordner unter „Backups“." required>
-    <input id="agent-name" class="input" bind:value={agentForm.name} placeholder="z. B. Heimserver" />
-  </Field>
-  <Field label="Quellordner (echter Pfad)" id="agent-paths" hint="z. B. /home/felix/Downloads / /home/felix/Dokumente">
-    <input id="agent-paths" class="input" bind:value={agentForm.paths} placeholder="/home/felix/Downloads" />
-  </Field>
+  <Switch bind:checked={createForm.enabled} label="Aktiv" description="Pausierte Sicherungen laufen nur manuell." />
   <svelte:fragment slot="footer">
-    <Button variant="quiet" onclick={() => (agentOpen = false)}>Abbrechen</Button>
-    <Button variant="primary" loading={saving} disabled={!agentForm.name.trim()} onclick={createAgent}>Agent anlegen</Button>
+    <Button variant="quiet" onclick={() => (createOpen = false)}>Abbrechen</Button>
+    <Button variant="primary" loading={saving} disabled={!createForm.name.trim()} onclick={submitCreate}>{createType === 'agent' ? 'Agent anlegen' : 'Sicherung anlegen'}</Button>
   </svelte:fragment>
 </Dialog>
 
@@ -440,29 +513,31 @@ Wird direkt auf dem Server ausgeführt.">
   <svelte:fragment slot="footer"><Button variant="primary" onclick={() => (newAgent = null)}>Fertig</Button></svelte:fragment>
 </Dialog>
 
-<Dialog open={agentEditOpen} title="Agent konfigurieren" description="Pfade, Zeitplan und Status des Agenten." onclose={() => (agentEditOpen = false)}>
-  <Field label="Pfade" id="agent-edit-paths" hint="Ein Pfad pro Zeile.">
-    <textarea id="agent-edit-paths" class="textarea" bind:value={agentEditPaths} placeholder="/home/felix/Dokumente"></textarea>
+<Dialog open={agentEditOpen} title="Agent konfigurieren" description={`Pfade, Zeitplan und Status von ${agentEditName}.`} size="lg" onclose={() => (agentEditOpen = false)}>
+  <Field label="Pfade" id="agent-edit-paths" hint="Ein echter Pfad pro Zeile.">
+    <textarea id="agent-edit-paths" class="textarea" bind:value={agentEditPaths} placeholder="/home/benutzer/Dokumente"></textarea>
   </Field>
-  <Field label="Zeitplan" id="agent-edit-schedule" hint="z. B. hourly, daily, weekly, 01:00, Sonntag">
-    <input id="agent-edit-schedule" class="input" bind:value={agentEditSchedule} placeholder="daily" />
+  <Field label="Zeitplan" id="agent-edit-schedule">
+    <select id="agent-edit-schedule" class="select" bind:value={agentEditSchedule}>
+      {#each scheduleOptions as option}
+        <option value={option.value}>{option.label}</option>
+      {/each}
+    </select>
   </Field>
-  <Field label="Ausschlussmuster (.gitignore-Stil)" id="agent-excludes" hint="Z. B. node_modules, .git, *.log — jede Zeile ein Muster.">
-    <textarea id="agent-excludes" class="textarea" bind:value={agentEditExcludes} placeholder="node_modules
-.git
-*.tmp"></textarea>
+  <Field label="Ausschlussmuster" id="agent-excludes" hint="Jede Zeile ein Muster, z. B. node_modules, .git, *.log.">
+    <textarea id="agent-excludes" class="textarea" bind:value={agentEditExcludes} placeholder={EXCLUDES_PLACEHOLDER}></textarea>
   </Field>
   <Switch bind:checked={agentEditEnabled} label="Agent aktiv" description="Wenn aus, läuft der Agent nicht mehr." />
-  <Field label="Befehl vor Agent-Lauf" id="agent-pre" hint="z. B. systemctl stop minecraft">
+  <Field label="Befehl vor Agent-Lauf" id="agent-pre" hint="Optional, wird auf dem Quellrechner ausgeführt.">
     <textarea id="agent-pre" class="textarea" bind:value={agentEditPre} placeholder="systemctl stop mc-server"></textarea>
   </Field>
-  <Field label="Befehl nach Agent-Lauf" id="agent-post" hint="z. B. systemctl start minecraft">
+  <Field label="Befehl nach Agent-Lauf" id="agent-post" hint="Optional, wird auf dem Quellrechner ausgeführt.">
     <textarea id="agent-post" class="textarea" bind:value={agentEditPost} placeholder="systemctl start mc-server"></textarea>
   </Field>
-  <Button variant="primary" onclick={() => { agentEdit = null; agentEditOpen = false; jobForm = blankJob(); jobForm.sourceNodeId = agentEdit?.rootFolderId || agentEdit?.rootFolderId; jobForm.sourceName = agentEdit?.name || ''; jobOpen = true; }}>Backup-Auftrag anlegen</Button>
+  <Button variant="secondary" icon="database-backup" onclick={() => makeJobFromAgent(agents.find((agent) => agent.id === agentEditId))}>Hochgeladene Dateien zusätzlich sichern</Button>
   <svelte:fragment slot="footer">
     <Button variant="quiet" onclick={() => (agentEditOpen = false)}>Abbrechen</Button>
-    <Button variant="primary" loading={saving} disabled={!agentEditPaths.trim()} onclick={saveAgentPaths}>Speichern</Button>
+    <Button variant="primary" loading={saving} disabled={!agentEditPaths.trim()} onclick={saveAgent}>Speichern</Button>
   </svelte:fragment>
 </Dialog>
 

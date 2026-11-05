@@ -43,6 +43,10 @@
   let disableOpen = false;
   let disablePassword = '';
   let disableError = '';
+  let updateStatus = null;
+  let updateCheckBusy = false;
+  let updateBusy = false;
+  let updateError = '';
 
   $: isAdmin = $user?.role === 'admin';
 
@@ -154,6 +158,39 @@
       metrics = m;
       health = h;
     } finally { metricsLoading = false; }
+    if (isAdmin) checkUpdates({ quiet: true });
+  }
+
+  async function checkUpdates({ quiet = false } = {}) {
+    if (!isAdmin) return;
+    if (!quiet) updateCheckBusy = true;
+    updateError = '';
+    try {
+      updateStatus = await get('/api/v1/system/update/status');
+      if (!quiet && !updateStatus.updateAvailable) notify('Onebox ist auf dem neuesten Stand.', 'success');
+    } catch (err) {
+      updateError = err.message;
+      if (!quiet) notify(err.message, 'error');
+    } finally { updateCheckBusy = false; }
+  }
+
+  async function startUpdate() {
+    const ok = await confirmAction({
+      title: 'Onebox jetzt aktualisieren?',
+      description: 'Die Instanz geht für mindestens 30 Sekunden in den Wartungsmodus, führt Datenbank-Migrationen aus und startet den Container neu.',
+      confirmLabel: 'Update starten',
+    });
+    if (!ok) return;
+    updateBusy = true;
+    updateError = '';
+    try {
+      await post('/api/v1/system/update', {});
+      window.location.assign('/maintenance');
+    } catch (err) {
+      updateError = err.message;
+      notify(err.message, 'error');
+      updateBusy = false;
+    }
   }
 
   async function chooseProfile(key) {
@@ -281,6 +318,49 @@
             <p class="stat-foot">Systemdaten konnten nicht geladen werden.</p>
           {/if}
           <div><Button variant="secondary" size="sm" loading={metricsLoading} onclick={loadMetrics}>Systemstatus aktualisieren</Button></div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="update-title">
+        <div class="section-head"><h2 id="update-title">Updates</h2><span class="tag">Admin</span></div>
+        <div class="card" style="display:grid;gap:var(--space-4)">
+          <div class="kv">
+            <dt>Installiert</dt><dd>{updateStatus?.current || health?.version || '–'}</dd>
+            <dt>Verfügbar</dt><dd>{updateStatus?.latest || (updateStatus ? '–' : 'noch nicht geprüft')}</dd>
+            <dt>Status</dt>
+            <dd>
+              {#if updateStatus?.updateAvailable}
+                <span class="tag tag--success">Update verfügbar</span>
+              {:else if updateStatus?.error}
+                <span class="tag tag--warning">Prüfung fehlgeschlagen</span>
+              {:else if updateStatus}
+                <span class="tag">Aktuell</span>
+              {:else}
+                <span class="tag">–</span>
+              {/if}
+            </dd>
+            <dt>Auto-Update</dt><dd>{updateStatus?.autoUpdate ? 'bereit' : 'nicht konfiguriert (siehe README)'}</dd>
+          </div>
+          {#if updateStatus?.error}<p class="field__hint" style="color:var(--color-warning)">{updateStatus.error}</p>{/if}
+          {#if updateError}<p class="field__hint" style="color:var(--color-error)">{updateError}</p>{/if}
+          {#if updateStatus?.notes}
+            <details>
+              <summary style="cursor:pointer;font-size:var(--text-sm);color:var(--color-text-secondary)">Änderungen ansehen</summary>
+              <pre class="code-block" style="max-height:14rem;overflow:auto">{updateStatus.notes}</pre>
+            </details>
+          {/if}
+          <div class="page-actions">
+            <Button variant="secondary" size="sm" icon="refresh-cw" loading={updateCheckBusy} onclick={() => checkUpdates()}>Nach Updates suchen</Button>
+            {#if updateStatus?.updateAvailable}
+              <Button variant="primary" size="sm" icon="download" loading={updateBusy} disabled={!updateStatus?.autoUpdate} onclick={startUpdate}>Jetzt aktualisieren</Button>
+            {/if}
+            {#if updateStatus?.url}
+              <Button variant="quiet" size="sm" href={updateStatus.url} title="Release-Seite auf GitHub öffnen">Release-Notizen</Button>
+            {/if}
+          </div>
+          {#if updateStatus?.updateAvailable && !updateStatus?.autoUpdate}
+            <p class="field__hint">Für Ein-Klick-Updates muss der Updater-Container laufen. Anleitung im README unter „Updates“.</p>
+          {/if}
         </div>
       </section>
     {/if}

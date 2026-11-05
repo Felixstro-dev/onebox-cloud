@@ -8,6 +8,7 @@
   import IconButton from './components/IconButton.svelte';
   import BottomLayer from './components/BottomLayer.svelte';
   import ConfirmHost from './components/ConfirmHost.svelte';
+  import UpdateNotice from './components/UpdateNotice.svelte';
   import Login from './views/Login.svelte';
   import Setup from './views/Setup.svelte';
   import Dashboard from './views/Dashboard.svelte';
@@ -295,6 +296,7 @@
     </div>
   </div>
   <BottomLayer />
+  <UpdateNotice />
 {/if}
 
 <ConfirmHost />

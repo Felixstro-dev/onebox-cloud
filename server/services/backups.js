@@ -2,6 +2,8 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import { createGzip } from 'node:zlib';
+import { pipeline } from 'node:stream/promises';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db, schema, sqlite } from '../db/index.js';
 import { config, paths } from '../config.js';
@@ -66,12 +68,28 @@ function manifestFor(rows, job) {
   };
 }
 
+/**
+ * Der Zielpfad wird aus Auftrags-ID und Lauf-ID abgeleitet, damit Retention
+ * und Wiederherstellung das Verzeichnis später exakt wiederfinden.
+ */
+export function localRunDir(cfg, job, run) {
+  return path.join(cfg.path, 'onebox', job.id, run.id);
+}
+
+export async function ensureLocalTarget(targetPath) {
+  if (!targetPath || typeof targetPath !== 'string') throw badRequest('Choose a target directory.');
+  const resolved = path.resolve(targetPath);
+  await fsp.mkdir(resolved, { recursive: true, mode: 0o755 });
+  const probe = path.join(resolved, `.onebox-write-${process.pid}`);
+  await fsp.writeFile(probe, '');
+  await fsp.unlink(probe).catch(() => {});
+  return resolved;
+}
+
 async function runLocal(job, run, manifest, objects) {
   const cfg = JSON.parse(job.targetConfig || '{}');
   if (!cfg.path) throw new Error('No target directory configured.');
-  const versionTag = job.name ? job.name.replace(/[^\w]/g, '-') : 'backup';
-  const dated = new Date(run.startedAt || Date.now()).toISOString().slice(0, 10);
-  const runDir = path.join(cfg.path, 'onebox', `${versionTag}-${dated}-${run.id}`);
+  const runDir = localRunDir(cfg, job, run);
   await fsp.mkdir(path.join(runDir, 'objects'), { recursive: true });
   for (const hash of objects) {
     const target = path.join(runDir, 'objects', hash);
@@ -85,12 +103,17 @@ async function runLocal(job, run, manifest, objects) {
     const snapshot = path.join(runDir, 'database.sqlite');
     await sqlite.backup(snapshot);
   }
-  await fsp.writeFile(path.join(runDir, 'manifest.json'), JSON.stringify(manifest));
+  const manifestPath = path.join(runDir, 'manifest.json');
+  await fsp.writeFile(manifestPath, JSON.stringify(manifest));
   if (cfg.compress) {
-    const gz = fs.createWriteStream(path.join(runDir, 'manifest.json.gz'));
-    fs.createReadStream(path.join(runDir, 'manifest.json')).pipe(require('node:zlib').createGzip()).pipe(gz);
-    await new Promise((r) => gz.on('finish', r));
+    await pipeline(
+      fs.createReadStream(manifestPath),
+      createGzip(),
+      fs.createWriteStream(`${manifestPath}.gz`),
+    );
   }
+  await fsp.writeFile(path.join(runDir, 'README.txt'),
+    `Onebox Backup\nAuftrag: ${job.name}\nLauf: ${run.id}\nErstellt: ${new Date().toISOString()}\n`);
   return runDir;
 }
 
@@ -158,7 +181,7 @@ async function applyRetention(job) {
   const cfg = JSON.parse(job.targetConfig || '{}');
   for (const run of removable) {
     if (job.targetType === 'local' && cfg.path) {
-      await fsp.rm(path.join(cfg.path, 'onebox', job.id, run.id), { recursive: true, force: true }).catch(() => {});
+      await fsp.rm(localRunDir(cfg, job, run), { recursive: true, force: true }).catch(() => {});
     }
     if (run.manifest) await fsp.unlink(run.manifest).catch(() => {});
     db.delete(schema.backupRuns).where(eq(schema.backupRuns.id, run.id)).run();
@@ -187,7 +210,7 @@ export async function restoreRun(job, run, ownerId, targetParentId) {
     if (!node.hash) continue;
     if (!fs.existsSync(objectPath(node.hash))) {
       if (job.targetType === 'local') {
-        const source = path.join(cfg.path, 'onebox', job.id, run.id, 'objects', node.hash);
+        const source = path.join(localRunDir(cfg, job, run), 'objects', node.hash);
         if (fs.existsSync(source)) {
           await fsp.mkdir(path.dirname(objectPath(node.hash)), { recursive: true });
           await fsp.copyFile(source, objectPath(node.hash));

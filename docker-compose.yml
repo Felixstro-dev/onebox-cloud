@@ -1,12 +1,16 @@
-version: "3"
+name: onebox
+
 services:
   onebox:
-    # Fertiges Multi-Arch-Image (amd64, arm64, arm/v7) aus GitHub Container Registry.
+    # Fertiges Multi-Arch-Image (amd64, arm64) aus GitHub Container Registry.
     # Lokal bauen: den build-Block einkommentieren und `image:` auskommentieren.
     image: ghcr.io/felixstro-dev/onebox-cloud:latest
     # build: .
     container_name: onebox
     restart: unless-stopped
+    labels:
+      # Nur dieses Label erlaubt Watchtower, den Container zu aktualisieren.
+      com.centurylinklabs.watchtower.enable: "true"
     ports:
       - "8090:8080"
     environment:
@@ -19,6 +23,36 @@ services:
       - BASE_URL=${BASE_URL:-}
       # Optional: verhindert die Ersteinrichtung durch Dritte (min. 16 Zeichen).
       - SETUP_TOKEN=${SETUP_TOKEN:-}
+      # Versionsnummer für die Update-Prüfung (muss zum Git-Tag passen).
+      - ONEB_VERSION=${ONEB_VERSION:-0.1.0}
+      # Interner Updater (Watchtower). Das Token schützt die Update-API.
+      - UPDATE_API_URL=http://onebox-updater:8080/v1/update
+      - UPDATE_API_TOKEN=${UPDATE_API_TOKEN:-change-me-to-a-long-random-string}
+      - UPDATE_CHECK_REPO=${UPDATE_CHECK_REPO:-Felixstro-dev/onebox-cloud}
     volumes:
       # Daten (SQLite-DB, Uploads, Thumbnails, Snapshots) bleiben auf dem Host.
       - ./data:/data
+      # Optional: zusätzliche Festplatte einbinden, z. B. eine große HDD.
+      # Danach in Onebox unter „Speicher“ als Speicherort hinzufügen.
+      # - /mnt/backup-hdd:/mnt/backup-hdd
+
+  # Aktualisiert Onebox auf Knopfdruck. Der Container läuft dauerhaft, prüft
+  # aber nur, wenn Onebox über die HTTP-API ein Update anstößt.
+  onebox-updater:
+    image: containrrr/watchtower:1.7.1
+    container_name: onebox-updater
+    restart: unless-stopped
+    command: --http-api-update --http-api-token ${UPDATE_API_TOKEN:-change-me-to-a-long-random-string}
+    environment:
+      - TZ=Europe/Berlin
+      - WATCHTOWER_HTTP_API_TOKEN=${UPDATE_API_TOKEN:-change-me-to-a-long-random-string}
+      - WATCHTOWER_LABEL_ENABLE=true
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_ROLLING_RESTART=true
+      - WATCHTOWER_TIMEOUT=5m
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Nicht nach außen veröffentlichen – nur der Onebox-Container spricht
+    # über das interne Compose-Netzwerk mit dem Updater.
+    expose:
+      - "8080"

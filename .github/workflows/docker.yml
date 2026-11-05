@@ -15,8 +15,6 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # QEMU-Builds für armv7 sind langsam; verhindert, dass ein Hänger bis zum
-    # 6-Stunden-Limit läuft.
     timeout-minutes: 60
     permissions:
       contents: read
@@ -56,8 +54,9 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          # amd64 = Server/PC, arm64 = moderne ARM-Boards, arm/v7 = Odroid XU4.
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          # amd64 = Server/PC, arm64 = moderne ARM-Boards (Raspberry Pi 4/5,
+          # Odroid N2). 32-Bit-ARM (arm/v7) wird nicht mehr gebaut.
+          platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

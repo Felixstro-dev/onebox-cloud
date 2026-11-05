@@ -12,6 +12,7 @@ import { sessionUser, COOKIE } from './services/auth.js';
 import { HttpError } from './lib/errors.js';
 import { registerRoutes } from './routes/index.js';
 import { realtime } from './services/realtime.js';
+import { maintenanceState, maintenancePage, maintenanceSecondsLeft } from './services/updates.js';
 
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -64,6 +65,30 @@ export async function buildApp({ logger = true } = {}) {
   app.addHook('onRequest', async (req, reply) => {
     reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     if (config.secureCookies) reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  });
+
+  // Während eines Updates antwortet die Instanz mit einer eigenständigen
+  // Wartungsseite. API- und Health-Aufrufe bleiben erlaubt, damit Docker und
+  // die Wartungsseite den Fortschritt prüfen können.
+  app.addHook('onRequest', async (req, reply) => {
+    const state = maintenanceState();
+    if (!state.active) return;
+    const url = String(req.url || '').split('?')[0];
+    const allowed = url === '/maintenance'
+      || url === '/api/v1/system/maintenance'
+      || url === '/api/v1/system/health';
+    if (allowed) return;
+    const seconds = maintenanceSecondsLeft();
+    reply.header('Retry-After', String(seconds || 30));
+    reply.header('Cache-Control', 'no-store');
+    if (url.startsWith('/api/')) {
+      return reply.status(503).send({
+        error: { code: 'maintenance', message: 'Onebox wird gerade aktualisiert. Bitte in wenigen Sekunden erneut versuchen.' },
+        maintenance: { ...state, seconds },
+      });
+    }
+    if (req.method === 'GET' || req.method === 'HEAD') return reply.redirect('/maintenance');
+    return reply.status(503).type('text/html').send(maintenancePage());
   });
 
   app.addHook('onSend', async (request, reply, payload) => {

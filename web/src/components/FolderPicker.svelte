@@ -10,16 +10,21 @@
   let folders = [];
   let loading = true;
   let error = '';
+  let filter = '';
 
   $: current = stack[stack.length - 1];
+  $: visibleFolders = filter.trim()
+    ? folders.filter((folder) => folder.name.toLocaleLowerCase('de').includes(filter.trim().toLocaleLowerCase('de')))
+    : folders;
 
   onMount(() => load(null));
 
   async function load(parentId) {
     loading = true;
     error = '';
+    filter = '';
     try {
-      const data = await get(`/api/v1/files?parent=${parentId || 'root'}&kind=folder&limit=200&sort=name`);
+      const data = await get(`/api/v1/files?parent=${parentId || 'root'}&kind=folder&limit=500&sort=name`);
       folders = data.items.filter((item) => item.kind === 'folder');
       onchange({ id: parentId, name: stack[stack.length - 1].name });
     } catch (err) {
@@ -54,14 +59,22 @@
       <div class="loading-block"><span class="skeleton"></span></div>
     {:else if error}
       <p class="form-error" role="alert">{error}</p>
-    {:else if !folders.length}
-      <p class="menu-note">Keine Unterordner. Der aktuelle Ordner wird gesichert.</p>
     {:else}
-      {#each folders as folder}
-        <button type="button" class="menu-item" on:click={() => enter(folder)}>
-          <Icon name="folder" size={16} /><span class="grow-ellipsis">{folder.name}</span><Icon name="chevron-right" size={14} />
-        </button>
-      {/each}
+      {#if folders.length > 6}
+        <label class="sr-only" for="folder-picker-filter">Ordner filtern</label>
+        <input id="folder-picker-filter" class="input" type="search" bind:value={filter} placeholder="Ordner durchsuchen …" autocomplete="off" />
+      {/if}
+      {#if !folders.length}
+        <p class="menu-note">Keine Unterordner. Der aktuelle Ordner wird gesichert.</p>
+      {:else if !visibleFolders.length}
+        <p class="menu-note">Kein Ordner passt zu „{filter}“.</p>
+      {:else}
+        {#each visibleFolders as folder}
+          <button type="button" class="menu-item" on:click={() => enter(folder)}>
+            <Icon name="folder" size={16} /><span class="grow-ellipsis">{folder.name}</span><Icon name="chevron-right" size={14} />
+          </button>
+        {/each}
+      {/if}
     {/if}
   </div>
 </div>

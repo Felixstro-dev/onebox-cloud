@@ -1,35 +1,163 @@
 # Onebox
 
-Selbst gehostete Cloud in einem Container: Dateien, Fotos, Dokumente, Freigaben
-und Backups. Fertige Multi-Arch-Images gibt es auf
+Selbst gehostete Cloud in einem Container: Dateien, Fotos, Dokumente, Freigaben,
+Chat und Backups. Fertige Images gibt es auf
 [GitHub Container Registry](https://github.com/Felixstro-dev/onebox-cloud/pkgs/container/onebox-cloud).
 
-Unterstützte Architekturen: `linux/amd64`, `linux/arm64`, `linux/arm/v7`
-(z. B. Odroid XU4).
+Unterstützte Architekturen: `linux/amd64` (PC/Server) und `linux/arm64`
+(Raspberry Pi 4/5, Odroid N2 und andere moderne ARM-Boards). 32-Bit-ARM
+(`linux/arm/v7`) wird nicht mehr gebaut.
 
-## Deployment per Docker Compose
+## Schnellstart mit Docker Compose
+
+Voraussetzungen: Docker 24+ mit Compose v2 und ein Linux-Server.
 
 ```bash
 mkdir -p onebox && cd onebox
 curl -fsSLO https://raw.githubusercontent.com/Felixstro-dev/onebox-cloud/master/docker-compose.yml
+# Update-Token setzen (schützt die interne Update-API):
+echo "UPDATE_API_TOKEN=$(openssl rand -hex 24)" > .env
 docker compose pull
 docker compose up -d
 ```
 
 Onebox ist danach unter `http://<server-ip>:8090` erreichbar. Beim ersten
-Aufruf von `/setup` wird der Admin-Benutzer angelegt.
+Aufruf führt `/setup` durch die Einrichtung des Admin-Kontos.
 
-Das Image kann auch direkt gestartet werden:
+Alle Daten liegen im Ordner `./data` neben der `docker-compose.yml`:
+SQLite-Datenbank, Uploads, Vorschaubilder und Migrations-Snapshots. Sichere
+diesen Ordner regelmäßig.
+
+### Ohne Compose starten
 
 ```bash
 docker run -d \
   --name onebox \
   --restart unless-stopped \
   -p 8090:8080 \
-  -v onebox-data:/data \
+  -v "$PWD/onebox-data:/data" \
   -e SETUP_TOKEN=<mindestens-16-zeichen> \
   ghcr.io/felixstro-dev/onebox-cloud:latest
 ```
+
+Für Ein-Klick-Updates wird zusätzlich der Watchtower-Container aus der
+`docker-compose.yml` benötigt (siehe [Updates](#updates)).
+
+## Die richtige Festplatte wählen und einbinden
+
+Onebox kann Daten auf einer zweiten Festplatte ablegen. Der Container sieht nur
+Ordner, die ausdrücklich als Volume eingebunden wurden. Deshalb wird die
+Platte **auf dem Host** gemountet und anschließend in den Container
+durchgereicht.
+
+### 1. Platte auf dem Host finden und mounten
+
+```bash
+lsblk -f
+# Beispiel: /dev/sdb1 ist die gewünschte Platte
+sudo mkdir -p /mnt/onebox-drive
+sudo mount /dev/sdb1 /mnt/onebox-drive
+```
+
+Damit der Mount einen Neustart übersteht, per UUID in `/etc/fstab` eintragen:
+
+```bash
+sudo blkid /dev/sdb1          # UUID notieren
+# /etc/fstab ergänzen:
+# UUID=<uuid>  /mnt/onebox-drive  ext4  defaults,nofail  0  2
+sudo mount -a
+```
+
+Das Dateisystem sollte `ext4` oder `xfs` sein. **NTFS/exFAT** funktionieren
+zwar, verlieren aber Besitzer- und Rechteinformationen und sind für die
+Datenbank nicht geeignet. Für die Onebox-Daten immer ein Linux-Dateisystem
+verwenden.
+
+### 2. Ordner anlegen und Rechte setzen
+
+Der Container läuft als Benutzer `node` mit **UID/GID 1000**. Der Host-Ordner
+muss für diese IDs beschreibbar sein:
+
+```bash
+sudo mkdir -p /mnt/onebox-drive/onebox
+sudo chown -R 1000:1000 /mnt/onebox-drive/onebox
+```
+
+### 3. Volume in `docker-compose.yml` eintragen
+
+```yaml
+    volumes:
+      - ./data:/data
+      - /mnt/onebox-drive/onebox:/mnt/onebox-drive/onebox
+```
+
+Danach neu starten:
+
+```bash
+docker compose up -d
+```
+
+### 4. Speicherort in Onebox aktivieren
+
+Unter **Speicher → Neuer Speicherort** den Pfad aus dem Container eintragen,
+z. B. `/mnt/onebox-drive/onebox`, und „Als Standardspeicher verwenden“
+aktivieren. Neue Uploads landen dann auf der großen Platte. Bestehende Dateien
+bleiben am alten Ort; sie werden nicht automatisch verschoben.
+
+> **Hinweis:** Ein Mount aus der Onebox-Oberfläche heraus ist nur mit
+> zusätzlichen Rechten (`privileged`, `/dev`-Durchreichung) möglich und wird
+> nicht empfohlen. Der Host-Mount oben ist der robuste Weg.
+
+Für **Backups** kann derselbe Ordner genutzt werden. Als Zielverzeichnis im
+Backup-Dialog z. B. `/mnt/onebox-drive/onebox/backups` eintragen; der Ordner
+wird bei Bedarf angelegt. Das Verzeichnis muss im Container sichtbar und
+beschreibbar sein.
+
+## Updates
+
+### Manuell
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Die Daten in `./data` bleiben erhalten. Vor größeren Updates empfiehlt sich
+eine Kopie des Ordners.
+
+### Ein-Klick-Update aus der Oberfläche
+
+Die mitgelieferte `docker-compose.yml` startet einen kleinen
+Watchtower-Container (`onebox-updater`). Er beobachtet nur Container mit dem
+Label `com.centurylinklabs.watchtower.enable=true` und wird ausschließlich
+über eine interne HTTP-API ausgelöst.
+
+Ablauf beim Klick auf **Jetzt aktualisieren**:
+
+1. Onebox prüft das neueste GitHub-Release.
+2. Die Instanz geht für mindestens 30 Sekunden in den Wartungsmodus
+   (`/maintenance`) und führt ausstehende Datenbank-Migrationen aus.
+3. Der Updater zieht das neue Image und startet den Container neu.
+4. Sobald der neue Container läuft und keine Wartung mehr aktiv ist, leitet die
+   Wartungsseite automatisch zurück zur Startseite.
+
+Damit die Prüfung funktioniert, muss `ONEB_VERSION` zur veröffentlichten
+Version passen (Git-Tag ohne `v`, z. B. `1.4.0`). Ist die Variable nicht
+gesetzt, gilt `0.1.0`.
+
+Wichtige Variablen:
+
+| Variable | Standard | Beschreibung |
+| --- | --- | --- |
+| `ONEB_VERSION` | `0.1.0` | Installierte Version für die Update-Prüfung |
+| `UPDATE_API_URL` | – | Interne Updater-URL, in Compose vorbelegt |
+| `UPDATE_API_TOKEN` | – | Token für die Updater-API (in `.env` setzen) |
+| `UPDATE_DELAY_SECONDS` | `30` | Wartezeit vor dem Neustart (mindestens 30) |
+| `UPDATE_CHECK_REPO` | `Felixstro-dev/onebox-cloud` | Repository für Release-Prüfungen |
+
+Ohne laufenden Updater bleibt der Button deaktiviert und die Oberfläche zeigt
+einen Hinweis. Das manuelle Update über `docker compose pull` funktioniert
+weiterhin.
 
 ## Konfiguration
 
@@ -37,7 +165,7 @@ docker run -d \
 | --- | --- | --- |
 | `PORT` | `8080` | Port im Container |
 | `HOST` | `0.0.0.0` | Bind-Adresse |
-| `DATA_DIR` | `/data` | SQLite-DB und Metadaten |
+| `DATA_DIR` | `/data` | SQLite-DB, Uploads und Metadaten |
 | `FILES_DIR` | `/data/files` | Ablage der Datei-Objekte |
 | `BASE_URL` | – | Öffentliche URL, z. B. `https://cloud.example.com` |
 | `SECURE_COOKIES` | `0` | Hinter HTTPS auf `1` setzen |
@@ -46,15 +174,39 @@ docker run -d \
 | `MAX_UPLOAD_BYTES` | `0` | Upload-Limit, `0` = unbegrenzt |
 | `SETUP_TOKEN` | – | Optionaler Schutz der Ersteinrichtung (min. 16 Zeichen) |
 
-## Update
+## Reverse Proxy und HTTPS
 
-```bash
-docker compose pull
-docker compose up -d
+Beispiel für Caddy:
+
+```
+cloud.example.com {
+    reverse_proxy 127.0.0.1:8090
+}
 ```
 
-Die Daten in `./data` bleiben dabei erhalten. Vor großen Updates empfiehlt sich
-eine Sicherung des Ordners.
+Beim Betrieb hinter HTTPS in Compose setzen:
+
+```env
+BASE_URL=https://cloud.example.com
+SECURE_COOKIES=1
+TRUST_PROXY=1
+```
+
+## Backups
+
+Unter **Backups** gibt es zwei Wege:
+
+- **Ordner in Onebox** sichert einen Ordner aus Onebox auf eine lokale Platte
+  (Pfad im Container, z. B. `/data/backups`) oder an eine andere
+  Onebox-Instanz.
+- **Rechner verbinden** legt einen Agenten für einen externen Rechner an. Der
+  Agent lädt dessen Ordner direkt nach Onebox; ein separater Backup-Auftrag ist
+  nicht nötig.
+
+Beim lokalen Ziel wird pro Lauf ein Ordner unter
+`<Ziel>/onebox/<Auftrags-ID>/<Lauf-ID>/` angelegt. Er enthält die Dateien,
+ein `manifest.json` und einen Datenbank-Snapshot. Die Aufbewahrung löscht nur
+ältere Läufe desselben Auftrags.
 
 ## Lokal bauen
 
@@ -62,5 +214,16 @@ eine Sicherung des Ordners.
 docker build -t onebox:latest .
 ```
 
-Für Updates wird bei jedem Push auf `master` automatisch ein neues Image
-gebaut und als `latest`, `master` und `sha-<commit>` veröffentlicht.
+Bei jedem Push auf `master` und für Tags (`v*`) baut die GitHub Action ein
+Multi-Arch-Image und veröffentlicht es als `latest`, `master` und
+`sha-<commit>` bzw. als Versions-Tag.
+
+## Fehlersuche
+
+- **Seite nicht erreichbar:** `docker compose logs -f onebox` prüfen.
+- **Update-Button deaktiviert:** Läuft `onebox-updater`? Ist
+  `UPDATE_API_TOKEN` in `.env` gesetzt und gleich für beide Container?
+- **Speicherort nicht akzeptiert:** Pfad muss im Container existieren und für
+  UID 1000 beschreibbar sein.
+- **Nach einem Update hängt die Wartungsseite:** `docker compose ps` prüfen und
+  bei Bedarf `docker compose up -d` erneut ausführen.

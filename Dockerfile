@@ -4,7 +4,7 @@
 # Build stage
 # ---------------------------------------------------------------------------
 # Debian (glibc) statt Alpine: sharp, better-sqlite3 und argon2 liefern für
-# linux/arm/v7 (32-Bit-Odroid) nur glibc-Prebuilds, keine musl-Prebuilds.
+# linux/amd64 und linux/arm64 zuverlässige glibc-Prebuilds.
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 

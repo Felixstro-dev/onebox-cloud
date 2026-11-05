@@ -61,6 +61,8 @@
   let shareNode = null;
   let moveNode = null;
   let previewNode = null;
+  let detailsOpen = false;
+  let detailsNode = null;
   let textEditOpen = false;
   let textEditNode = null;
   let uploadInput;
@@ -543,6 +545,7 @@
     if (action === 'download') window.location.href = `/api/v1/files/${item.id}/download`;
     if (action === 'trash') (selectedCount > 1 ? trashSelection() : trashItem(item));
     if (action === 'copy') copyNode(item);
+    if (action === 'details') { detailsNode = item; detailsOpen = true; }
     if (action === 'extract') openExtract(item);
     if (action === 'zipDownload') downloadZip();
     if (action === 'zipCreate') openZipCreate();
@@ -1294,6 +1297,7 @@
       <button class="menu-item" role="menuitem" on:click={() => menuAction('rename')}><Icon name="pencil" size={16} />Umbenennen</button>
       <button class="menu-item" role="menuitem" on:click={() => menuAction('move')}><Icon name="folder-input" size={16} />Verschieben</button>
       <button class="menu-item" role="menuitem" on:click={() => menuAction('copy')}><Icon name="copy" size={16} />Kopie erstellen</button>
+      <button class="menu-item" role="menuitem" on:click={() => menuAction('details')}><Icon name="info" size={16} />Details</button>
       <div class="menu-sep"></div>
     {/if}
     <button class="menu-item menu-item--danger" role="menuitem" on:click={() => menuAction('trash')}><Icon name="trash-2" size={16} />{selectedCount > 1 ? `${selectedCount} Elemente löschen` : 'In den Papierkorb'}</button>
@@ -1334,6 +1338,30 @@
   <svelte:fragment slot="footer">
     <Button variant="quiet" onclick={() => (renameOpen = false)}>Abbrechen</Button>
     <Button variant="primary" disabled={!renameValue.trim()} onclick={doRename}>Speichern</Button>
+  </svelte:fragment>
+</Dialog>
+
+<Dialog open={detailsOpen} title="Details" description={detailsNode?.name || ''} size="sm" onclose={() => (detailsOpen = false)}>
+  {#if detailsNode}
+    <dl class="kv">
+      <dt>Name</dt><dd style="word-break:break-word">{detailsNode.name}</dd>
+      <dt>Typ</dt><dd>{detailsNode.kind === 'folder' ? 'Ordner' : (detailsNode.mime || 'Datei')}</dd>
+      {#if detailsNode.kind !== 'folder'}
+        <dt>Größe</dt><dd>{bytes(detailsNode.size)}</dd>
+      {/if}
+      {#if detailsNode.width && detailsNode.height}
+        <dt>Abmessungen</dt><dd>{detailsNode.width} × {detailsNode.height} px</dd>
+      {/if}
+      <dt>Geändert</dt><dd>{dateTime(detailsNode.updatedAt)}</dd>
+      {#if detailsNode.createdAt}<dt>Erstellt</dt><dd>{dateTime(detailsNode.createdAt)}</dd>{/if}
+      {#if detailsNode.hash}<dt>Prüfsumme</dt><dd style="word-break:break-all;font-size:var(--text-xs)">{detailsNode.hash}</dd>{/if}
+    </dl>
+  {/if}
+  <svelte:fragment slot="footer">
+    <Button variant="quiet" onclick={() => (detailsOpen = false)}>Schließen</Button>
+    {#if detailsNode?.kind === 'file'}
+      <Button variant="secondary" size="sm" icon="download" href={`/api/v1/files/${detailsNode.id}/download`}>Herunterladen</Button>
+    {/if}
   </svelte:fragment>
 </Dialog>
 
