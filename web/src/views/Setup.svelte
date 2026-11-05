@@ -29,7 +29,7 @@
       return;
     }
     if (password.length < 10) { error = 'Das Passwort muss mindestens 10 Zeichen lang sein.'; return; }
-    if (password !== repeat) { error = 'Die Passwörter stimmen nicht überein.'; return; }
+    if (!repeat || password !== repeat) { error = 'Die Passwörter stimmen nicht überein.'; return; }
     busy = true;
     try {
       const result = await post('/api/v1/system/setup', {
@@ -64,7 +64,7 @@
         <h1>Willkommen</h1>
         <p class="lede">Lege das Administratorkonto für diese Instanz an. Das ist der einzige Schritt, bevor es losgeht.</p>
       </div>
-      <form class="auth-form" on:submit={submit}>
+      <form class="auth-form" novalidate on:submit={submit}>
         <Field label="Benutzername" id="setup-user" hint="Buchstaben, Zahlen, Punkt, Bindestrich, Unterstrich." required>
           <input id="setup-user" class="input" bind:value={username} autocomplete="username" required use:autofocus />
         </Field>
@@ -82,7 +82,7 @@
         </Field>
         {#if error}<p class="form-error" role="alert"><Icon name="circle-alert" size={15} />{error}</p>{/if}
         {#if success}<p class="form-success" role="status" aria-live="polite"><Icon name="circle-check" size={15} />{success}</p>{/if}
-        <Button type="submit" variant="primary" full loading={busy} disabled={!username || password.length < 10 || mismatch}>
+        <Button type="submit" variant="primary" full loading={busy} disabled={busy}>
           {busy ? 'Instanz wird eingerichtet …' : 'Instanz einrichten'}
         </Button>
       </form>
