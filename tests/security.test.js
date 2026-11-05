@@ -67,6 +67,25 @@ async function insertNode({ name, kind = 'file', mime, content }) {
 test('Sicherheit: Pfade, CSRF, Header, Rate-Limit und 2FA', async (t) => {
   await setup();
 
+  await t.test('akzeptiert WebDAV Basic Auth auch mit vorhandener Sitzung', async () => {
+    const credentials = Buffer.from('security:super-secret-pass').toString('base64');
+    const options = await app.inject({ method: 'OPTIONS', url: '/dav' });
+    assert.equal(options.statusCode, 200, options.payload);
+    assert.equal(options.headers.dav, '1, 2');
+
+    const missing = await app.inject({ method: 'PROPFIND', url: '/dav' });
+    assert.equal(missing.statusCode, 401, missing.payload);
+    assert.match(missing.headers['www-authenticate'], /^Basic realm="Onebox WebDAV"/);
+
+    await insertNode({ name: 'webdav-regression.txt', content: 'WebDAV works', mime: 'text/plain' });
+    const remove = await app.inject({
+      method: 'DELETE',
+      url: '/dav/webdav-regression.txt',
+      headers: { cookie, authorization: `Basic ${credentials}` },
+    });
+    assert.equal(remove.statusCode, 204, remove.payload);
+  });
+
   await t.test('lehnt unsichere Ordnernamen und Pfade ab', async () => {
     for (const name of ['..', '.', 'CON', 'a/b', 'a\\b', 'x\u0000y', 'x'.repeat(300)]) {
       const response = await post('/api/v1/folders', { name });

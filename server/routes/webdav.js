@@ -1,7 +1,7 @@
 import fsp from 'node:fs/promises';
 import { and, eq, isNull } from 'drizzle-orm';
 import { db, schema } from '../db/index.js';
-import { badRequest, forbidden, notFound } from '../lib/errors.js';
+import { badRequest, notFound, unauthorized } from '../lib/errors.js';
 import { getNode, resolvePath, uniqueName, moveNode, createFolder, trashNodes, toClient } from '../services/nodes.js';
 import { hashToken } from '../lib/ids.js';
 import { hashPassword, verifyPassword, rateLimit } from '../services/auth.js';
@@ -20,12 +20,12 @@ function basicUser(req) {
 
 async function davUser(req) {
   const credentials = basicUser(req);
-  if (!credentials) throw forbidden('WebDAV needs a username and password.');
+  if (!credentials) throw unauthorized('WebDAV needs a username and password.');
   const key = `dav:${req.ip}:${credentials.username}`;
-  if (!rateLimit(key, { max: 20, windowMs: 60000 })) throw forbidden('Too many attempts.');
+  if (!rateLimit(key, { max: 20, windowMs: 60000 })) throw unauthorized('Too many attempts.');
   const rows = db.select().from(schema.users).all();
   const user = rows.find((row) => row.username.toLowerCase() === credentials.username.toLowerCase());
-  if (!user || user.disabled || !(await verifyPassword(user.passwordHash, credentials.password))) throw forbidden('WebDAV credentials are wrong.');
+  if (!user || user.disabled || !(await verifyPassword(user.passwordHash, credentials.password))) throw unauthorized('WebDAV credentials are wrong.');
   return user;
 }
 
@@ -84,10 +84,18 @@ export async function registerWebdavRoutes(app) {
     return reply.status(200).send();
   });
 
+  app.options('/dav', async (req, reply) => {
+    reply.header('DAV', '1, 2');
+    reply.header('Allow', 'OPTIONS, GET, HEAD, PUT, PROPFIND, MKCOL, DELETE, MOVE, COPY, PROPPATCH, LOCK, UNLOCK');
+    reply.header('MS-Author-Via', 'DAV');
+    return reply.status(200).send();
+  });
+
   app.addHook('onRequest', async (req, reply) => {
     if (!req.url.startsWith('/dav')) return;
     reply.header('DAV', '1, 2');
     reply.header('MS-Author-Via', 'DAV');
+    reply.header('WWW-Authenticate', 'Basic realm="Onebox WebDAV", charset="UTF-8"');
   });
 
   route('PROPFIND', async (req, reply) => {

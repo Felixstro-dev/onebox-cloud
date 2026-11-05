@@ -102,7 +102,8 @@ export async function buildApp({ logger = true } = {}) {
   app.decorateRequest('user', null);
   app.addHook('preHandler', async (req) => {
     req.user = sessionUser(req);
-    if (MUTATING.has(req.method) && req.user) {
+    // WebDAV authentifiziert jede Anfrage per HTTP Basic Auth.
+    if (MUTATING.has(req.method) && req.user && !req.url.startsWith('/dav')) {
       const header = req.headers['x-onebox-csrf'];
       if (header !== '1') throw new HttpError(403, 'csrf', 'Missing request verification header.');
       const origin = req.headers.origin;
