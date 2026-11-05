@@ -1,0 +1,24 @@
+version: "3"
+services:
+  onebox:
+    # Fertiges Multi-Arch-Image (amd64, arm64, arm/v7) aus GitHub Container Registry.
+    # Lokal bauen: den build-Block einkommentieren und `image:` auskommentieren.
+    image: ghcr.io/felixstro-dev/onebox-cloud:latest
+    # build: .
+    container_name: onebox
+    restart: unless-stopped
+    ports:
+      - "8090:8080"
+    environment:
+      - TZ=Europe/Berlin
+      - DATA_DIR=/data
+      - FILES_DIR=/data/files
+      # Hinter HTTPS/Reverse-Proxy auf 1 setzen.
+      - SECURE_COOKIES=${SECURE_COOKIES:-0}
+      - TRUST_PROXY=${TRUST_PROXY:-0}
+      - BASE_URL=${BASE_URL:-}
+      # Optional: verhindert die Ersteinrichtung durch Dritte (min. 16 Zeichen).
+      - SETUP_TOKEN=${SETUP_TOKEN:-}
+    volumes:
+      # Daten (SQLite-DB, Uploads, Thumbnails, Snapshots) bleiben auf dem Host.
+      - ./data:/data

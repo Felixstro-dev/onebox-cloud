@@ -1,7 +1,9 @@
 node_modules
 data
 files
+backups
 dist
+test-results
 .git
 .env
 *.log
