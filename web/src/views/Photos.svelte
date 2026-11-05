@@ -20,7 +20,6 @@
   let activeAlbum = null;
   let selected = new Set();
   let selectMode = 'none';
-  let allCount = 0;
   let viewerIndex = null;
   let exif = null;
   let exifOpen = false;
@@ -80,7 +79,6 @@
       nextOffset = data.nextOffset;
       selected = new Set();
       selectMode = 'none';
-      allCount = 0;
     } catch (err) { failed = err.message; } finally { loading = false; loadingMore = false; }
   }
 
@@ -88,7 +86,6 @@
     activeAlbum = id;
     selected = new Set();
     selectMode = 'none';
-    allCount = 0;
     load();
   }
 
@@ -96,11 +93,38 @@
     const next = new Set(selected);
     if (next.has(id)) next.delete(id); else next.add(id);
     selected = next;
+    if (selected.size) selectMode = 'partial';
+  }
+
+  function toggleSelectionMode() {
+    if (selectMode === 'none') {
+      selectMode = 'partial';
+      return;
+    }
+    selected = new Set();
+    selectMode = 'none';
+  }
+
+  function selectVisible() {
+    selected = new Set(items.map((item) => item.id));
+    selectMode = 'partial';
+  }
+
+  function activatePhoto(photo, index) {
+    if (selectMode !== 'none') toggle(photo.id);
+    else openViewer(index);
+  }
+
+  function onPhotoKey(event, photo, index) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      activatePhoto(photo, index);
+    }
   }
 
   async function deleteSelected() {
-    if ((!selected.size && selectMode !== 'all') || (selectMode === 'all' && !items.length)) return;
-    const count = selectMode === 'all' ? allCount : selected.size;
+    if (!selected.size) return;
+    const count = selected.size;
     const ok = await confirmAction({
       title: count > 1 ? `${count.toLocaleString('de-DE')} Fotos löschen?` : 'Foto löschen?',
       description: count > 1 ? 'Alle ausgewählten Fotos werden in den Papierkorb verschoben.' : 'Das Foto wird in den Papierkorb verschoben.',
@@ -109,12 +133,10 @@
     });
     if (!ok) return;
     try {
-      const ids = selectMode === 'all' ? items.map(i => i.id) : [...selected];
-      await post('/api/v1/files/trash', { ids });
+      await post('/api/v1/files/trash', { ids: [...selected] });
       notify(`${count > 1 ? count + ' Fotos' : 'Foto'} in den Papierkorb verschoben.`, 'success');
       selected = new Set();
       selectMode = 'none';
-      allCount = 0;
       load();
     } catch (err) { notify(err.message, 'error'); }
   }
@@ -131,7 +153,6 @@
     notify(`${selected.size} ${selected.size === 1 ? 'Foto' : 'Fotos'} dupliziert.`, 'success');
     selected = new Set();
     selectMode = 'none';
-    allCount = 0;
     load();
   }
 
@@ -146,6 +167,15 @@
     viewerIndex = null;
     exifOpen = false;
     stopSlideshow();
+  }
+
+  async function deleteCurrent() {
+    if (!current) return;
+    const node = current;
+    closeViewer();
+    selected = new Set([node.id]);
+    selectMode = 'partial';
+    await deleteSelected();
   }
 
   function step(delta) {
@@ -198,7 +228,6 @@
       addToAlbumOpen = false;
       selected = new Set();
       selectMode = 'none';
-      allCount = 0;
       loadAlbums();
     } catch (err) { notify(err.message, 'error'); } finally { albumBusy = false; }
   }
@@ -257,8 +286,14 @@
     </div>
     <div class="page-actions">
       <Button variant="secondary" icon="folder-plus" onclick={() => { newAlbumOpen = true; albumName = ''; }}>Album erstellen</Button>
-      {#if selected.size || selectMode === 'all'}
-        <Button variant="primary" icon="images" onclick={() => (addToAlbumOpen = true)}>{selectMode === 'all' ? 'Alle' : selected.size} zu Album</Button>
+      {#if items.length}
+        <Button variant={selectMode === 'none' ? 'secondary' : 'quiet'} icon={selectMode === 'none' ? 'check-square' : 'x'} onclick={toggleSelectionMode}>{selectMode === 'none' ? 'Auswählen' : 'Auswahl beenden'}</Button>
+      {/if}
+      {#if selectMode !== 'none' && items.length}
+        <Button variant="quiet" size="sm" icon="check-check" onclick={selectVisible}>Sichtbare auswählen</Button>
+      {/if}
+      {#if selected.size}
+        <Button variant="primary" icon="images" onclick={() => (addToAlbumOpen = true)}>{selected.size} zu Album</Button>
         <Button variant="quiet" size="sm" icon="copy" onclick={duplicateSelected}>Duplizieren</Button>
         <Button variant="danger" icon="trash-2" onclick={deleteSelected}>Löschen</Button>
       {/if}
@@ -267,13 +302,8 @@
 
   {#if selectMode === 'partial' && items.length > 0 && selected.size === items.length && total > items.length}
   <div class="selection-hint" role="status" aria-live="polite" style="margin-bottom:var(--space-4);animation:fade-in .35s ease-out">
-    <span>{selected.size.toLocaleString('de-DE')} von {total.toLocaleString('de-DE')} Fotos ausgewählt</span>
-    <button type="button" class="link-btn" onclick={() => { selectMode = 'all'; allCount = total; }}>Alle {total.toLocaleString('de-DE')} auswählen</button>
-  </div>
-  {:else if selectMode === 'all'}
-  <div class="selection-hint" role="status" aria-live="polite" style="margin-bottom:var(--space-4);animation:fade-in .35s ease-out">
-    <span>Alle {allCount.toLocaleString('de-DE')} Fotos ausgewählt</span>
-    <button type="button" class="link-btn" onclick={() => { selected = new Set(); selectMode = 'none'; allCount = 0; }}>Auswahl aufheben</button>
+    <span>Alle aktuell geladenen Fotos ausgewählt. Weitere Fotos können nachgeladen werden.</span>
+    <button type="button" class="link-btn" onclick={toggleSelectionMode}>Auswahl aufheben</button>
   </div>
   {/if}
 
@@ -312,10 +342,12 @@
         <div class="photo-grid">
           {#each group.photos as photo}
             {@const index = items.indexOf(photo)}
-            <button type="button" class="photo-tile" class:is-selected={selected.has(photo.id)} onclick={() => openViewer(index)} aria-label={`${photo.name} öffnen`}>
+            <div class="photo-tile" class:is-selected={selected.has(photo.id)} role="button" tabindex="0" onclick={() => activatePhoto(photo, index)} onkeydown={(event) => onPhotoKey(event, photo, index)} aria-label={selectMode === 'none' ? `${photo.name} öffnen` : `${photo.name} auswählen`}>
               <img src={`/api/v1/files/${photo.id}/thumbnail?size=320`} alt="" loading="lazy" />
-              <input class="check" type="checkbox" checked={selected.has(photo.id)} onclick={() => { toggle(photo.id); }} aria-label={`${photo.name} auswählen`} />
-            </button>
+              {#if selectMode !== 'none'}
+                <input class="check" type="checkbox" checked={selected.has(photo.id)} onclick={(event) => { event.stopPropagation(); toggle(photo.id); }} onkeydown={(event) => event.stopPropagation()} aria-label={`${photo.name} auswählen`} />
+              {/if}
+            </div>
           {/each}
         </div>
       </section>
@@ -338,6 +370,7 @@
       <IconButton name="info" label="Details anzeigen" active={exifOpen} onclick={() => (exifOpen = !exifOpen)} />
       <IconButton name="pencil" label="Foto bearbeiten" onclick={() => openEditor(current)} />
       <IconButton name="download" label="Foto herunterladen" onclick={() => download(current)} />
+      <IconButton name="trash-2" label="Foto in den Papierkorb verschieben" onclick={deleteCurrent} />
       <IconButton name="x" label="Viewer schließen" onclick={closeViewer} />
     </div>
     <div class="viewer__stage">

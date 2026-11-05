@@ -116,7 +116,7 @@
     {:else}
       <textarea id="md-editor" bind:value={content} disabled={loading} placeholder="# Überschrift
 
-Text hier..." />
+    Text hier..."></textarea>
     {/if}
     <input style="display:none;" type="file" bind:this={uploadInput} on:change={onImageChange} accept="image/*" />
   </div>
