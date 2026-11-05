@@ -12,7 +12,6 @@
   let displayName = '';
   let password = '';
   let repeat = '';
-  let setupToken = '';
   let error = '';
   let success = '';
   let busy = false;
@@ -50,7 +49,6 @@
     try {
       const result = await post('/api/v1/system/setup', {
         username: normalizedUsername, password, displayName: displayName.trim() || undefined,
-        setupToken: setupToken || undefined,
       });
       success = 'Instanz erfolgreich eingerichtet. Weiterleitung …';
       notify('Onebox ist eingerichtet. Willkommen!', 'success');
@@ -93,9 +91,6 @@
         </Field>
         <Field label="Passwort wiederholen" id="setup-repeat" error={repeatError} required>
           <input id="setup-repeat" class="input" type="password" bind:value={repeat} autocomplete="new-password" required on:blur={() => (repeatTouched = true)} />
-        </Field>
-        <Field label="Setup-Token" id="setup-token" hint="Nur nötig, wenn die Instanz mit ONEB…-Token gestartet wurde.">
-          <input id="setup-token" class="input" bind:value={setupToken} autocomplete="off" />
         </Field>
         {#if error}<p class="form-error" role="alert"><Icon name="circle-alert" size={15} />{error}</p>{/if}
         {#if success}<p class="form-success" role="status" aria-live="polite"><Icon name="circle-check" size={15} />{success}</p>{/if}

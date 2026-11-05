@@ -1,7 +1,7 @@
 # Persistenz & Upgrade-Sicherheit
 
 ## Daten, die erhalten bleiben (nicht gelöscht bei Upgrade):
-- `.env` — Konfiguration (Port, Datenverzeichnisse, Setup-Token)
+- `.env` — Konfiguration (Port und Datenverzeichnisse)
 - `data/` — SQLite-Datenbank (`onebox.db`), Uploads, Thumbnails, Snapshots
 - `files/` — Objekte (File-Storage)
 - `dist/` — Gebauter Web-Client (wird bei jeder `npm run build` neu erzeugt)
@@ -20,7 +20,6 @@ docker run -d \
   -e DATA_DIR=/data \
   -e FILES_DIR=/files \
   -e PORT=8080 \
-  -e SETUP_TOKEN=<min-16-chars> \
   onebox
 ```
 

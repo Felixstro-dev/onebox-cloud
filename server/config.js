@@ -24,8 +24,7 @@ export const config = {
   sessionDays: int(process.env.SESSION_DAYS, 30),
   maxUploadBytes: int(process.env.MAX_UPLOAD_BYTES, 0),
   logLevel: process.env.LOG_LEVEL || 'info',
-  version: process.env.ONEB_VERSION || '0.1.0',
-  setupToken: process.env.SETUP_TOKEN || '',
+  version: process.env.ONEB_VERSION || '0.2.0',
   updateRepo: process.env.UPDATE_CHECK_REPO || 'Felixstro-dev/onebox-cloud',
   updateApiUrl: process.env.UPDATE_API_URL || '',
   updateApiToken: process.env.UPDATE_API_TOKEN || '',
@@ -65,9 +64,6 @@ export function configErrors() {
   }
   if (!config.dataDir || !config.filesDir) {
     errors.push('DATA_DIR und FILES_DIR müssen gesetzt sein.');
-  }
-  if (config.setupToken && config.setupToken.length < 16) {
-    errors.push('SETUP_TOKEN muss mindestens 16 Zeichen lang sein.');
   }
   return errors;
 }

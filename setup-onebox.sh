@@ -108,7 +108,7 @@ echo "Alternativ per CLI:"
 echo ""
 echo 'curl -X POST http://192.168.30.202:8090/api/v1/system/setup \\'
 echo '  -H '"'"'content-type: application/json'"'"' -H '"'"'x-onebox-csrf: 1'"'"' \\'
-echo '  -d '"'"'{"username":"admin","password":"DeinPass123!","displayName":"Admin","setupToken":"ein-lang-16-zeichen-token"'"'"''
+echo '  -d '"'"'{"username":"admin","password":"DeinPass123!","displayName":"Admin"'"'"''
 echo ""
 echo "Nach der Einrichtung kannst du unter http://192.168.30.202:8090/ einloggen."
 

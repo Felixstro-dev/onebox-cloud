@@ -9,13 +9,11 @@ process.env.DATA_DIR = dataDir;
 process.env.FILES_DIR = path.join(dataDir, 'files');
 process.env.LOG_LEVEL = 'silent';
 process.env.WEB_DIR = path.join(dataDir, 'web');
-process.env.SETUP_TOKEN = 'test-setup-token-123456';
 
 const { runMigrations, db, schema } = await import('../server/db/index.js');
 await runMigrations();
 const { buildApp } = await import('../server/app.js');
 const app = await buildApp({ logger: false });
-const setupToken = process.env.SETUP_TOKEN;
 
 test.after(async () => {
   await app.close();
@@ -23,17 +21,9 @@ test.after(async () => {
 });
 
 test('Ersteinrichtung validiert Eingaben, erstellt eine Session und bleibt abgeschlossen', async (t) => {
-  const invalidToken = await app.inject({
-    method: 'POST', url: '/api/v1/system/setup',
-    payload: { username: 'admin', password: 'correct horse battery', setupToken: 'wrong-setup-token' },
-    headers: { 'x-onebox-csrf': '1' },
-  });
-  assert.equal(invalidToken.statusCode, 401);
-  assert.equal(invalidToken.json().error.message, 'Setup token is wrong.');
-
   const invalid = await app.inject({
     method: 'POST', url: '/api/v1/system/setup',
-    payload: { username: 'bad name', password: 'short', displayName: 'Test', setupToken },
+    payload: { username: 'bad name', password: 'short', displayName: 'Test' },
     headers: { 'x-onebox-csrf': '1' },
   });
   assert.equal(invalid.statusCode, 400);
@@ -42,12 +32,12 @@ test('Ersteinrichtung validiert Eingaben, erstellt eine Session und bleibt abges
   const firstResponses = await Promise.all([
     app.inject({
       method: 'POST', url: '/api/v1/system/setup',
-      payload: { username: 'admin', password: 'correct horse battery', displayName: 'Admin', setupToken },
+      payload: { username: 'admin', password: 'correct horse battery', displayName: 'Admin' },
       headers: { 'x-onebox-csrf': '1' },
     }),
     app.inject({
       method: 'POST', url: '/api/v1/system/setup',
-      payload: { username: 'admin', password: 'correct horse battery', displayName: 'Admin', setupToken },
+      payload: { username: 'admin', password: 'correct horse battery', displayName: 'Admin' },
       headers: { 'x-onebox-csrf': '1' },
     }),
   ]);
@@ -67,7 +57,7 @@ test('Ersteinrichtung validiert Eingaben, erstellt eine Session und bleibt abges
 
   const duplicate = await app.inject({
     method: 'POST', url: '/api/v1/system/setup',
-    payload: { username: 'second', password: 'another correct password', setupToken: 'wrong-setup-token' },
+    payload: { username: 'second', password: 'another correct password' },
     headers: { 'x-onebox-csrf': '1' },
   });
   assert.equal(duplicate.statusCode, 400);

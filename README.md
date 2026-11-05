@@ -28,77 +28,27 @@ Alle Daten liegen im Ordner `./data` neben der `docker-compose.yml`:
 SQLite-Datenbank, Uploads, Vorschaubilder und Migrations-Snapshots. Sichere
 diesen Ordner regelmäßig.
 
-### Setup-Token für die Ersteinrichtung
+### Sicherheitshinweis zur Ersteinrichtung
 
-Ein Setup-Token schützt die Ersteinrichtung davor, dass fremde Personen das
-erste Administratorkonto anlegen. Das Token ist optional, sollte bei einem
-öffentlich erreichbaren Server aber gesetzt werden. Es muss mindestens 16
-Zeichen lang sein und wird **exakt** verglichen: Groß-/Kleinschreibung,
-Leerzeichen und alle anderen Zeichen zählen. Onebox verändert das Token und
-das Passwort nicht automatisch.
+Onebox verwendet keinen separaten Setup-Token mehr.
 
-Ein sicheres Token erzeugen:
+Das bedeutet, dass eine Person, die während der offenen Ersteinrichtung Zugriff
+auf die Setup-Seite erhält, möglicherweise das erste Administratorkonto
+erstellen und die Kontrolle über die Installation übernehmen kann.
 
-```bash
-openssl rand -hex 32
-```
+**Sicherheitsmaßnahmen:**
 
-Das Ergebnis in die `.env` neben der `docker-compose.yml` eintragen:
+- Onebox vor der Ersteinrichtung nicht ungeschützt öffentlich erreichbar machen.
+- Den Zugriff auf `/setup` während der Ersteinrichtung durch eine Firewall, VPN
+  oder HTTP-Authentifizierung des Reverse-Proxys beschränken.
+- Die Ersteinrichtung möglichst unmittelbar nach der Installation durchführen.
+- Nach erfolgreicher Einrichtung prüfen, dass keine erneute
+  Administratorregistrierung möglich ist.
+- HTTPS für den regulären Betrieb aktivieren.
 
-```env
-SETUP_TOKEN=hier-das-erzeugte-token-eintragen
-UPDATE_API_TOKEN=ein-zweites-langes-zufallstoken
-```
-
-Danach Container starten oder neu erstellen:
-
-```bash
-docker compose up -d
-```
-
-Das Token im Feld **Setup-Token** auf `/setup` eingeben. Es wird nur benötigt,
-solange noch kein Benutzerkonto existiert. Nach erfolgreicher Einrichtung ist
-die Ersteinrichtung abgeschlossen; spätere Logins benötigen nur Benutzername
-und Passwort, nicht das Setup-Token.
-
-Wichtig:
-
-- `.env` enthält ein Geheimnis und gehört nicht in Git oder in Support-Logs.
-- Nicht versehentlich Anführungszeichen oder zusätzliche Leerzeichen mitkopieren.
-- Bei `Setup token is wrong.` müssen `SETUP_TOKEN` im Container und der
-  eingegebene Wert exakt übereinstimmen. Der Fehler bleibt auf der Setup-Seite
-  und ist kein Passwortfehler.
-- Die gesetzte Variable prüfen, ohne den Wert öffentlich zu posten:
-
-  ```bash
-  docker compose config --environment | grep '^SETUP_TOKEN=' | sed 's/=.*/=<gesetzt>/'
-  docker compose ps
-  ```
-
-- Nach einer Änderung der `.env` den Container neu erstellen, damit die neue
-  Umgebungsvariable übernommen wird:
-
-  ```bash
-  docker compose up -d --force-recreate onebox
-  ```
-
-Beim Einzelstart ohne Compose das Token direkt als Umgebungsvariable setzen:
-
-```bash
-SETUP_TOKEN="$(openssl rand -hex 32)"
-docker run -d \
-  --name onebox \
-  --restart unless-stopped \
-  -p 8090:8080 \
-  -v "$PWD/onebox-data:/data" \
-  -e SETUP_TOKEN="$SETUP_TOKEN" \
-  ghcr.io/felixstro-dev/onebox-cloud:latest
-```
-
-Das Token wird nicht in der Datenbank gespeichert. Bei einer bestehenden
-Installation kann ein geändertes Token daher keine bereits abgeschlossene
-Ersteinrichtung rückgängig machen. Die Daten unter `/data` niemals löschen,
-nur um einen Tokenfehler zu beheben.
+Die Ersteinrichtung verlangt nur Benutzername, Passwort und optionalen
+Anzeigenamen. Sie kann nur einmal erfolgreich abgeschlossen werden; bestehende
+Administratorkonten und Daten werden nicht überschrieben.
 
 ### Ohne Compose starten
 
@@ -108,7 +58,6 @@ docker run -d \
   --restart unless-stopped \
   -p 8090:8080 \
   -v "$PWD/onebox-data:/data" \
-  -e SETUP_TOKEN=<mindestens-16-zeichen> \
   ghcr.io/felixstro-dev/onebox-cloud:latest
 ```
 
@@ -221,14 +170,14 @@ Ablauf beim Klick auf **Jetzt aktualisieren**:
    Wartungsseite automatisch zurück zur Startseite.
 
 Damit die Prüfung funktioniert, wird `ONEB_VERSION` beim Bauen des Images aus
-dem Git-Tag gesetzt (bei Branch-Builds `0.1.0`). Die Variable kann bei Bedarf in
+dem Git-Tag gesetzt (bei Branch-Builds `0.2.0`). Die Variable kann bei Bedarf in
 Compose überschrieben werden, normalerweise ist das nicht nötig.
 
 Wichtige Variablen:
 
 | Variable | Standard | Beschreibung |
 | --- | --- | --- |
-| `ONEB_VERSION` | `0.1.0` | Installierte Version für die Update-Prüfung |
+| `ONEB_VERSION` | `0.2.0` | Installierte Version für die Update-Prüfung |
 | `UPDATE_API_URL` | – | Interne Updater-URL, in Compose vorbelegt |
 | `UPDATE_API_TOKEN` | – | Token für die Updater-API (in `.env` setzen) |
 | `DOCKER_API_VERSION` | `1.44` | Docker-API-Version, die der Updater per CLI-Flag verwendet; nur für ältere Daemons absenken |
@@ -259,7 +208,6 @@ ziehen und Container mit Cleanup bzw. Rolling Restart neu zu erzeugen.
 | `TRUST_PROXY` | `0` | Hinter Reverse-Proxy auf `1` setzen |
 | `SESSION_DAYS` | `30` | Gültigkeit der Sitzung |
 | `MAX_UPLOAD_BYTES` | `0` | Upload-Limit, `0` = unbegrenzt |
-| `SETUP_TOKEN` | – | Optionaler Schutz der Ersteinrichtung (min. 16 Zeichen) |
 
 ## Reverse Proxy und HTTPS
 

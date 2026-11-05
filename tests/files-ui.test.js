@@ -6,6 +6,7 @@ const read = (path) => fs.readFile(new URL(path, import.meta.url), 'utf8');
 const files = await read('../web/src/views/Files.svelte');
 const selectionBar = await read('../web/src/components/SelectionBar.svelte');
 const bottomLayer = await read('../web/src/components/BottomLayer.svelte');
+const app = await read('../web/src/App.svelte');
 const css = await read('../web/src/styles/app.css');
 
 test('Auswahlleiste: Aufheben und Löschen sind echte Click-Handler', () => {
@@ -22,7 +23,7 @@ test('Auswahlleiste: Aufheben und Löschen sind echte Click-Handler', () => {
 test('Auswahlleiste lebt im gemeinsamen Bottom-Layer', () => {
   assert.match(bottomLayer, /<SelectionBar \/>/);
   assert.match(bottomLayer, /<UploadPanel \/>/);
-  assert.match(bottomLayer, /<ToastHost \/>/);
+  assert.match(app, /<ToastHost \/>/);
   assert.match(files, /selectionBar\.set\(/);
   assert.doesNotMatch(files, /class="selection-bar"/);
 });

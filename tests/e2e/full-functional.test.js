@@ -38,7 +38,7 @@ before(async () => {
   const resp = await fetch(`${base}/api/v1/system/setup`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-onebox-csrf': '1' },
-    body: JSON.stringify({ username: 'testuser', password: 'testpass123', displayName: 'Test User', setupToken: 'test-token-123' }),
+    body: JSON.stringify({ username: 'testuser', password: 'testpass123', displayName: 'Test User' }),
   });
   const login = await fetch(`${base}/api/v1/auth/login`, {
     method: 'POST',

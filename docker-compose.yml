@@ -21,8 +21,6 @@ services:
       - SECURE_COOKIES=${SECURE_COOKIES:-0}
       - TRUST_PROXY=${TRUST_PROXY:-0}
       - BASE_URL=${BASE_URL:-}
-      # Optional: verhindert die Ersteinrichtung durch Dritte (min. 16 Zeichen).
-      - SETUP_TOKEN=${SETUP_TOKEN:-}
       # Versionsnummer für die Update-Prüfung. Wird normalerweise aus dem
       # Image übernommen; nur zum Testen überschreiben.
       # - ONEB_VERSION=0.1.0

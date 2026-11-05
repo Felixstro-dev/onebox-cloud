@@ -31,7 +31,6 @@ services:
       - SECURE_COOKIES=0
       - SESSION_DAYS=30
       - MAX_UPLOAD_BYTES=0
-      - SETUP_TOKEN=dein-16-stelliges-token  # <-- beim ersten Start setzen!
     volumes:
       - onebox-data:/data   # <-- WICHTIG: DB, Uploads, Settings bleiben erhalten
     healthcheck:
@@ -54,7 +53,7 @@ docker compose up -d
   ```
   curl -X POST http://odroid-ip:8080/api/v1/system/setup \
     -H 'content-type: application/json' -H 'x-onebox-csrf: 1' \
-    -d '{"username":"admin","password":"Passwort123!","displayName":"Admin","setupToken":"dein-16-stelliges-token"}'
+    -d '{"username":"admin","password":"Passwort123!","displayName":"Admin"}'
   ```
 
 ## 4. Daten persistence
@@ -106,7 +105,7 @@ docker compose up -d
 |------|----------|
 | **Sehe ich meine HDD / Speicherorte nach Update?** | Ja, weil `/data` im Volume liegt. Nur bei `docker compose down -v` würde der gesamte lokale Datenordner gelöscht werden – lass das weg! |
 | **Muss ich nach jedem `npm run build` neu bauen?** | Nur wenn du `web/` Code geändert hast. `server/` Änderungen erfordern `docker compose build`. |
-| **Wie setze ich ein Passwort zurück, wenn ich es vergessen habe?** | Du kannst die DB direkt bearbeiten: `docker exec onebox sqlite3 /data/onebox.db "UPDATE users SET passwordHash='...'"` – oder neu aufsetzen mit neuem `SETUP_TOKEN`. |
+| **Wie setze ich ein Passwort zurück, wenn ich es vergessen habe?** | Du kannst die DB direkt bearbeiten: `docker exec onebox sqlite3 /data/onebox.db "UPDATE users SET passwordHash='...'"` – oder den dokumentierten Wiederherstellungsweg verwenden. |
 | **ODROID-Architektur?** | Das Dockerfile nutzt `node:22-alpine`, das auf ARM (Odroid) läuft. Prüfe mit `docker compose config` ob `platform: linux/arm64` gesetzt ist, falls der Odroid 64-Bit nutzt. |
 
 ## 7. Update-Protokoll (kurz)
