@@ -50,6 +50,10 @@ services:
     command: --http-api-update --http-api-token ${UPDATE_API_TOKEN:-change-me-to-a-long-random-string}
     environment:
       - TZ=Europe/Berlin
+      # Watchtower 1.7.1 nutzt standardmäßig Docker API 1.25. Moderne
+      # Docker-Daemons verlangen mindestens 1.44. Für ältere Daemons in .env
+      # überschreiben, z. B. DOCKER_API_VERSION=1.43.
+      - DOCKER_API_VERSION=${DOCKER_API_VERSION:-1.44}
       - WATCHTOWER_HTTP_API_TOKEN=${UPDATE_API_TOKEN:-change-me-to-a-long-random-string}
       - WATCHTOWER_LABEL_ENABLE=true
       - WATCHTOWER_CLEANUP=true

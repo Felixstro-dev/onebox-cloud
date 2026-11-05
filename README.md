@@ -159,6 +159,7 @@ Wichtige Variablen:
 | `ONEB_VERSION` | `0.1.0` | Installierte Version für die Update-Prüfung |
 | `UPDATE_API_URL` | – | Interne Updater-URL, in Compose vorbelegt |
 | `UPDATE_API_TOKEN` | – | Token für die Updater-API (in `.env` setzen) |
+| `DOCKER_API_VERSION` | `1.44` | Docker-API-Version für den Updater; bei älteren Daemons passend absenken |
 | `UPDATE_DELAY_SECONDS` | `30` | Wartezeit vor dem Neustart (mindestens 30) |
 | `UPDATE_CHECK_REPO` | `Felixstro-dev/onebox-cloud` | Repository für Release-Prüfungen |
 
