@@ -25,7 +25,10 @@ export async function api(method, path, body = undefined, { access = null, raw =
   const type = response.headers.get('content-type') || '';
   const data = type.includes('application/json') ? await response.json() : await response.text();
   if (!response.ok) {
-    if (response.status === 401 && !path.startsWith('/api/v1/auth') && !path.startsWith('/api/v1/public')) {
+    if (response.status === 401
+      && !path.startsWith('/api/v1/auth')
+      && !path.startsWith('/api/v1/public')
+      && !path.startsWith('/api/v1/system/setup')) {
       window.dispatchEvent(new CustomEvent('onebox:unauthorized'));
     }
     if (response.status === 503 && data?.error?.code === 'maintenance' && !window.location.pathname.startsWith('/maintenance')) {

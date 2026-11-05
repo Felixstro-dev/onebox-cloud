@@ -28,6 +28,78 @@ Alle Daten liegen im Ordner `./data` neben der `docker-compose.yml`:
 SQLite-Datenbank, Uploads, Vorschaubilder und Migrations-Snapshots. Sichere
 diesen Ordner regelmäßig.
 
+### Setup-Token für die Ersteinrichtung
+
+Ein Setup-Token schützt die Ersteinrichtung davor, dass fremde Personen das
+erste Administratorkonto anlegen. Das Token ist optional, sollte bei einem
+öffentlich erreichbaren Server aber gesetzt werden. Es muss mindestens 16
+Zeichen lang sein und wird **exakt** verglichen: Groß-/Kleinschreibung,
+Leerzeichen und alle anderen Zeichen zählen. Onebox verändert das Token und
+das Passwort nicht automatisch.
+
+Ein sicheres Token erzeugen:
+
+```bash
+openssl rand -hex 32
+```
+
+Das Ergebnis in die `.env` neben der `docker-compose.yml` eintragen:
+
+```env
+SETUP_TOKEN=hier-das-erzeugte-token-eintragen
+UPDATE_API_TOKEN=ein-zweites-langes-zufallstoken
+```
+
+Danach Container starten oder neu erstellen:
+
+```bash
+docker compose up -d
+```
+
+Das Token im Feld **Setup-Token** auf `/setup` eingeben. Es wird nur benötigt,
+solange noch kein Benutzerkonto existiert. Nach erfolgreicher Einrichtung ist
+die Ersteinrichtung abgeschlossen; spätere Logins benötigen nur Benutzername
+und Passwort, nicht das Setup-Token.
+
+Wichtig:
+
+- `.env` enthält ein Geheimnis und gehört nicht in Git oder in Support-Logs.
+- Nicht versehentlich Anführungszeichen oder zusätzliche Leerzeichen mitkopieren.
+- Bei `Setup token is wrong.` müssen `SETUP_TOKEN` im Container und der
+  eingegebene Wert exakt übereinstimmen. Der Fehler bleibt auf der Setup-Seite
+  und ist kein Passwortfehler.
+- Die gesetzte Variable prüfen, ohne den Wert öffentlich zu posten:
+
+  ```bash
+  docker compose config --environment | grep '^SETUP_TOKEN=' | sed 's/=.*/=<gesetzt>/'
+  docker compose ps
+  ```
+
+- Nach einer Änderung der `.env` den Container neu erstellen, damit die neue
+  Umgebungsvariable übernommen wird:
+
+  ```bash
+  docker compose up -d --force-recreate onebox
+  ```
+
+Beim Einzelstart ohne Compose das Token direkt als Umgebungsvariable setzen:
+
+```bash
+SETUP_TOKEN="$(openssl rand -hex 32)"
+docker run -d \
+  --name onebox \
+  --restart unless-stopped \
+  -p 8090:8080 \
+  -v "$PWD/onebox-data:/data" \
+  -e SETUP_TOKEN="$SETUP_TOKEN" \
+  ghcr.io/felixstro-dev/onebox-cloud:latest
+```
+
+Das Token wird nicht in der Datenbank gespeichert. Bei einer bestehenden
+Installation kann ein geändertes Token daher keine bereits abgeschlossene
+Ersteinrichtung rückgängig machen. Die Daten unter `/data` niemals löschen,
+nur um einen Tokenfehler zu beheben.
+
 ### Ohne Compose starten
 
 ```bash
