@@ -14,6 +14,7 @@
 
   async function submit(event) {
     event.preventDefault();
+    if (busy) return;
     error = '';
     busy = true;
     try {

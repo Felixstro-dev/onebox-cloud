@@ -28,8 +28,8 @@
 >
   {#if loading}
     <span class="spinner" aria-hidden="true"></span>
-  {:else if icon}
-    <Icon name={icon} size={18} />
+  {:else}
+    {#if icon}<Icon name={icon} size={18} />{/if}
+    <slot />
   {/if}
-  <slot />
 </svelte:element>
