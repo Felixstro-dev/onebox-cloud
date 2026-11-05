@@ -159,13 +159,20 @@ Wichtige Variablen:
 | `ONEB_VERSION` | `0.1.0` | Installierte Version für die Update-Prüfung |
 | `UPDATE_API_URL` | – | Interne Updater-URL, in Compose vorbelegt |
 | `UPDATE_API_TOKEN` | – | Token für die Updater-API (in `.env` setzen) |
-| `DOCKER_API_VERSION` | `1.44` | Docker-API-Version für den Updater; bei älteren Daemons passend absenken |
+| `DOCKER_API_VERSION` | `1.44` | Docker-API-Version, die der Updater per CLI-Flag verwendet; nur für ältere Daemons absenken |
 | `UPDATE_DELAY_SECONDS` | `30` | Wartezeit vor dem Neustart (mindestens 30) |
 | `UPDATE_CHECK_REPO` | `Felixstro-dev/onebox-cloud` | Repository für Release-Prüfungen |
 
 Ohne laufenden Updater bleibt der Button deaktiviert und die Oberfläche zeigt
 einen Hinweis. Das manuelle Update über `docker compose pull` funktioniert
 weiterhin.
+
+Der Updater verwendet `nickfedor/watchtower:1.24.0` mit festem Digest. Die
+gepflegte Fork unterstützt die explizite Docker-API-Version per `--api-version`;
+das alte `containrrr/watchtower:1.7.1` fällt auf einen veralteten Client zurück
+und ist für Docker Engine 29 nicht geeignet. Der Updater benötigt den
+lesenden und schreibenden Docker-Socket, um Container zu inspizieren, Images zu
+ziehen und Container mit Cleanup bzw. Rolling Restart neu zu erzeugen.
 
 ## Konfiguration
 

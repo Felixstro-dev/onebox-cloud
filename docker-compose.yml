@@ -44,21 +44,24 @@ services:
   # Aktualisiert Onebox auf Knopfdruck. Der Container läuft dauerhaft, prüft
   # aber nur, wenn Onebox über die HTTP-API ein Update anstößt.
   onebox-updater:
-    image: containrrr/watchtower:1.7.1
+    # Gepflegte Watchtower-Fork mit Docker-Client für moderne Engines.
+    # Der Digest gehört zu nickfedor/watchtower:1.24.0 (verifiziert am 05.11.2026).
+    image: nickfedor/watchtower:1.24.0@sha256:e96976bcbeaf0a9adeddc9016a539c27a2245ef6bb7d3ca97ed106783350d387
     container_name: onebox-updater
     restart: unless-stopped
-    command: --http-api-update --http-api-token ${UPDATE_API_TOKEN:-change-me-to-a-long-random-string}
+    command:
+      - --http-api-update
+      - --http-api-token
+      - ${UPDATE_API_TOKEN:-change-me-to-a-long-random-string}
+      - --api-version
+      - ${DOCKER_API_VERSION:-1.44}
+      - --label-enable
+      - --cleanup
+      - --rolling-restart
+      - --stop-timeout
+      - 5m
     environment:
       - TZ=Europe/Berlin
-      # Watchtower 1.7.1 nutzt standardmäßig Docker API 1.25. Moderne
-      # Docker-Daemons verlangen mindestens 1.44. Für ältere Daemons in .env
-      # überschreiben, z. B. DOCKER_API_VERSION=1.43.
-      - DOCKER_API_VERSION=${DOCKER_API_VERSION:-1.44}
-      - WATCHTOWER_HTTP_API_TOKEN=${UPDATE_API_TOKEN:-change-me-to-a-long-random-string}
-      - WATCHTOWER_LABEL_ENABLE=true
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_ROLLING_RESTART=true
-      - WATCHTOWER_TIMEOUT=5m
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     # Nicht nach außen veröffentlichen – nur der Onebox-Container spricht

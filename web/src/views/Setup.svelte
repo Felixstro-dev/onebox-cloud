@@ -13,21 +13,32 @@
   let repeat = '';
   let setupToken = '';
   let error = '';
+  let success = '';
   let busy = false;
 
   $: mismatch = repeat.length > 0 && password !== repeat;
 
   async function submit(event) {
     event.preventDefault();
+    if (busy) return;
     error = '';
+    success = '';
+    const normalizedUsername = username.trim();
+    if (!/^[a-zA-Z0-9._-]+$/.test(normalizedUsername)) {
+      error = 'Der Benutzername darf nur Buchstaben, Zahlen, Punkte, Bindestriche und Unterstriche enthalten.';
+      return;
+    }
+    if (password.length < 10) { error = 'Das Passwort muss mindestens 10 Zeichen lang sein.'; return; }
     if (password !== repeat) { error = 'Die Passwörter stimmen nicht überein.'; return; }
     busy = true;
     try {
       const result = await post('/api/v1/system/setup', {
-        username: username.trim(), password, displayName: displayName.trim() || undefined,
+        username: normalizedUsername, password, displayName: displayName.trim() || undefined,
         setupToken: setupToken || undefined,
       });
+      success = 'Instanz erfolgreich eingerichtet. Weiterleitung …';
       notify('Onebox ist eingerichtet. Willkommen!', 'success');
+      await new Promise((resolve) => setTimeout(resolve, 500));
       ondone(result.user);
     } catch (err) {
       error = err.message || 'Einrichtung fehlgeschlagen.';
@@ -70,7 +81,10 @@
           <input id="setup-token" class="input" bind:value={setupToken} autocomplete="off" />
         </Field>
         {#if error}<p class="form-error" role="alert"><Icon name="circle-alert" size={15} />{error}</p>{/if}
-        <Button type="submit" variant="primary" full loading={busy} disabled={!username || password.length < 10 || mismatch}>Instanz einrichten</Button>
+        {#if success}<p class="form-success" role="status" aria-live="polite"><Icon name="circle-check" size={15} />{success}</p>{/if}
+        <Button type="submit" variant="primary" full loading={busy} disabled={!username || password.length < 10 || mismatch}>
+          {busy ? 'Instanz wird eingerichtet …' : 'Instanz einrichten'}
+        </Button>
       </form>
       <p class="auth-note"><Icon name="shield-check" size={14} /> Passwörter werden mit Argon2id gespeichert.</p>
     </div>

@@ -41,6 +41,7 @@ export async function registerAuthRoutes(app) {
   app.get('/api/v1/system/setup', async () => ({ needsSetup: userCount() === 0 }));
 
   app.post('/api/v1/system/setup', {
+    config: { rateLimit: { max: 10, timeWindow: '5 minutes', keyGenerator: (req) => `setup:${req.ip}` } },
     schema: {
       body: {
         type: 'object', required: ['username', 'password'],
@@ -53,16 +54,27 @@ export async function registerAuthRoutes(app) {
       },
     },
   }, async (req, reply) => {
-    if (userCount() > 0) throw badRequest('Setup has already been completed.');
     if (config.setupToken && req.body.setupToken !== config.setupToken) throw unauthorized('Setup token is wrong.');
     const username = req.body.username.trim();
     if (!/^[a-zA-Z0-9._-]+$/.test(username)) throw badRequest('Username may only use letters, numbers, dots, dashes, and underscores.');
     const passwordHash = await hashPassword(req.body.password);
     const userId = id();
-    db.insert(schema.users).values({
-      id: userId, username, displayName: (req.body.displayName || username).trim(),
-      passwordHash, role: 'admin', quotaBytes: 0, createdAt: Date.now(),
-    }).run();
+    try {
+      db.transaction((tx) => {
+        if (tx.select({ count: sql`count(*)` }).from(schema.users).get().count > 0) {
+          throw badRequest('Setup has already been completed.');
+        }
+        tx.insert(schema.users).values({
+          id: userId, username, displayName: (req.body.displayName || '').trim() || username,
+          passwordHash, role: 'admin', quotaBytes: 0, createdAt: Date.now(),
+        }).run();
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {
+        throw badRequest('Setup has already been completed.');
+      }
+      throw error;
+    }
     const session = createSession(userId, req);
     reply.setCookie(COOKIE, session.token, cookieOptions);
     activity(userId, 'setup.completed', 'user', userId, null, req.ip);
