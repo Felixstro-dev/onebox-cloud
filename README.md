@@ -218,6 +218,18 @@ Bei jedem Push auf `master` und für Tags (`v*`) baut die GitHub Action ein
 Multi-Arch-Image und veröffentlicht es als `latest`, `master` und
 `sha-<commit>` bzw. als Versions-Tag.
 
+## Entwicklung und Releases
+
+Hinweise für Mitwirkende und KI-Agenten stehen in [`AGENTS.md`](AGENTS.md).
+Für ein neues Release immer zuerst die Version an allen Stellen setzen:
+
+```bash
+npm run version:bump -- 0.2.0
+```
+
+Danach committen, Tag `v0.2.0` pushen **und** ein GitHub-Release anlegen –
+ohne Release findet die Update-Prüfung keine neue Version.
+
 ## Fehlersuche
 
 - **Seite nicht erreichbar:** `docker compose logs -f onebox` prüfen.
