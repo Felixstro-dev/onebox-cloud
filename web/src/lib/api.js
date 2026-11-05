@@ -26,6 +26,9 @@ export async function api(method, path, body = undefined, { access = null, raw =
     if (response.status === 401 && !path.startsWith('/api/v1/auth') && !path.startsWith('/api/v1/public')) {
       window.dispatchEvent(new CustomEvent('onebox:unauthorized'));
     }
+    if (response.status === 503 && data?.error?.code === 'maintenance' && !window.location.pathname.startsWith('/maintenance')) {
+      window.location.assign('/maintenance');
+    }
     throw new ApiError(response.status, data?.error?.code || 'error', data?.error?.message || response.statusText, data?.error?.details);
   }
   return data;
