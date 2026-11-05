@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="de" data-style="modern">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Upload-Fenster</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap">
+<style>
+/*@inline tokens.css*/
+/*@inline motion.css*/
+/*@inline components.css*/
+/*@inline modern.css*/
+/*@inline loaders.css*/
+/*@inline upload-panel.css*/
+body { min-height: 100dvh; display: grid; place-items: center; padding: var(--space-6); }
+.demo { max-width: 38rem; display: grid; gap: var(--space-6); text-align: left; }
+.drop { display: grid; gap: var(--space-3); justify-items: center; text-align: center; padding: var(--space-12) var(--space-6); border: 1px dashed var(--color-border-default); border-radius: var(--radius-xl); background: var(--color-bg-sidebar); transition: border-color var(--duration-base) var(--ease-out), background var(--duration-base) var(--ease-out); }
+.drop.is-over { border-color: var(--color-text-secondary); background: var(--color-bg-elevated); }
+</style>
+</head>
+<body>
+<!--@inline icons.svg-->
+<main class="demo">
+ <h1 class="display">Dateien hochladen</h1>
+ <p class="lead">Wähle Dateien aus oder zieh sie hierher. Unten rechts erscheint das Upload-Fenster mit Fortschritt je Datei, Gesamtprozent und geschätzter Restzeit. In dieser Demo wird der Upload simuliert, eine Datei schlägt absichtlich fehl, damit du „Erneut versuchen“ sehen kannst.</p>
+ <div class="drop" id="drop">
+  <svg class="icon" style="width:2rem;height:2rem;color:var(--color-text-secondary)"><use href="#i-download"/></svg>
+  <p style="margin:0">Dateien hierher ziehen</p>
+  <div class="cluster" style="justify-content:center"><button class="btn btn--primary btn--pill" id="pick"><svg class="icon"><use href="#i-plus"/></svg>Dateien auswählen</button><button class="btn btn--secondary btn--pill" id="sim">Demo starten</button></div>
+  <input type="file" id="file" multiple hidden>
+ </div>
+</main>
+<script>
+/*@inline upload-panel.js*/
+const $ = s => document.querySelector(s);
+const up = UploadPanel.create({ lang: 'de-DE' });
+/* Simulation: gleicht der echten Schnittstelle (add, start, progress, done, fail). In der App ersetzt UploadPanel.uploadFiles(files, { url }) diesen Teil. */
+const jobs = new Map();
+function run(id) {
+  const j = jobs.get(id); let sent = 0; up.start(id);
+  j.timer = setInterval(() => {
+    sent += j.file.size / 38 * (0.6 + Math.random() * 0.8);
+    if (j.failAt && sent > j.file.size * j.failAt) { j.failAt = 0; clearInterval(j.timer); return up.fail(id, 'Verbindung unterbrochen'); }
+    if (sent >= j.file.size) { clearInterval(j.timer); return up.done(id); }
+    up.progress(id, sent);
+  }, 220);
+}
+function startAll(files) { files.forEach((f, i) => { const id = up.add({ name: f.name, size: f.size }); jobs.set(id, { file: f, failAt: i === 2 && files.length > 2 ? .55 : 0 }); setTimeout(() => run(id), 150 + Math.random() * 600); }); }
+up.onRetry = id => run(id);
+up.onCancel = id => clearInterval(jobs.get(id) && jobs.get(id).timer);
+$('#pick').onclick = () => $('#file').click();
+$('#file').onchange = e => startAll([...e.target.files]);
+$('#sim').onclick = () => startAll([{ name: 'Urlaub-2026.zip', size: 148e6 }, { name: 'IMG_4021.jpg', size: 6.2e6 }, { name: 'Praesentation-Quartal.pdf', size: 23.4e6 }, { name: 'Video-Hochzeit.mov', size: 412e6 }, { name: 'Notizen.txt', size: 18e3 }]);
+const drop = $('#drop'); ['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('is-over'); })); ['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('is-over'); }));
+drop.addEventListener('drop', e => startAll([...e.dataTransfer.files]));
+</script>
+</body>
+</html>

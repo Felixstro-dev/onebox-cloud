@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="de" data-style="modern">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Seite nicht gefunden (404)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap">
+<style>
+/*@inline tokens.css*/
+/*@inline motion.css*/
+/*@inline components.css*/
+/*@inline modern.css*/
+/*@inline site.css*/
+.err { min-height: 100dvh; display: grid; place-items: center; padding: var(--space-6); text-align: center; }
+.err__box { display: grid; gap: var(--space-6); justify-items: center; max-width: 32rem; }
+.err__code { font: 500 var(--text-sm)/1 var(--font-mono); color: var(--color-text-secondary); letter-spacing: .08em; }
+.err .icon-lg { width: 3rem; height: 3rem; color: var(--color-accent-brand); }
+</style>
+</head>
+<body>
+<!--@inline icons.svg-->
+<main class="err"><div class="err__box">
+ <svg class="icon icon-lg anim-rise" aria-hidden="true"><use href="#i-asterisk"/></svg>
+ <p class="err__code anim-rise" style="--i:1">FEHLER 404</p>
+ <h1 class="display anim-rise" style="--i:2">Diese Seite gibt es nicht.</h1>
+ <p class="lead anim-rise" style="--i:3">Vielleicht ist der Link veraltet oder die Adresse falsch geschrieben. Von der Startseite aus findest du alles Weitere.</p>
+ <div class="cluster anim-rise" style="--i:4;justify-content:center"><a class="btn btn--primary btn--pill" href="/" style="text-decoration:none">Zur Startseite</a><button class="btn btn--secondary btn--pill" onclick="history.back()">Zurück</button></div>
+</div></main>
+</body>
+</html>

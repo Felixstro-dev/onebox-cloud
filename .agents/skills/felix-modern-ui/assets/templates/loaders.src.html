@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Loader und Animationen</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Inter:wght@400;500&family=Source+Serif+4:wght@400&display=swap">
+<script>document.documentElement.classList.add('js')</script>
+<style>
+/*@inline tokens.css*/
+/*@inline motion.css*/
+/*@inline components.css*/
+/*@inline modern.css*/
+/*@inline loaders.css*/
+/*@inline effects.css*/
+.wrap { max-width: var(--size-content-max); margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-16); display: grid; gap: var(--space-12); }
+.wrap > header { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: center; justify-content: space-between; }
+.wrap h1 { font-size: var(--text-title); }
+.wrap h2 { font-size: var(--text-lg); margin-bottom: var(--space-4); }
+.row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+.cell { display: grid; gap: var(--space-4); align-content: space-between; min-height: 9.5rem; }
+.cell .demo { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: center; min-height: 3.5rem; }
+.tag { font: 400 var(--text-xs)/1.3 var(--font-mono); color: var(--color-text-secondary); }
+.tile-fx { display: grid; place-items: center; height: 4.5rem; border-radius: var(--radius-md); background: var(--color-bg-active); font-size: var(--text-xs); }
+.fx-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: var(--space-3); }
+.big { font-size: clamp(1.75rem, 5vw, 3rem); letter-spacing: -.035em; line-height: 1.05; margin: 0; }
+.pill { padding: .5rem 1rem; border-radius: var(--radius-pill); background: var(--color-bg-active); white-space: nowrap; }
+.sample-img { width: 100%; aspect-ratio: 16/9; border-radius: var(--radius-md); object-fit: cover; display: block; }
+</style>
+</head>
+<body>
+<!--@inline icons.svg-->
+<div class="scroll-progress" aria-hidden="true"></div>
+<div class="topbar-progress" aria-hidden="true"><i></i></div>
+
+<div class="preloader" hidden data-exit="up" role="status" aria-live="polite">
+ <div class="preloader__inner">
+  <svg class="preloader__logo" viewBox="0 0 24 24" aria-hidden="true"><path pathLength="1" d="M12 6v12"/><path pathLength="1" d="M17.196 9 6.804 15"/><path pathLength="1" d="m6.804 9 10.392 6"/></svg>
+  <div class="preloader__count" aria-hidden="true">000</div><span class="loader-text">Seite lädt</span>
+ </div>
+ <div class="preloader__bar" aria-hidden="true"><i></i></div>
+</div>
+
+<main class="wrap">
+ <header>
+  <h1 class="fx-fade-up">Loader und Animationen</h1>
+  <div class="row"><button class="btn btn--secondary pressable" id="styleBtn"><svg class="icon"><use href="#i-wand-sparkles"/></svg>Stil wechseln</button>
+   <button class="btn btn--secondary pressable" id="themeBtn"><svg class="icon"><use href="#i-sun"/></svg>Hell / Dunkel</button></div>
+ </header>
+
+ <section><h2>Ladeanzeigen</h2><div class="card-grid">
+  <div class="card cell"><div class="demo"><span class="spinner" role="status"><span class="loader-text">Lädt</span></span><span class="spinner spinner--lg" role="status"><span class="loader-text">Lädt</span></span></div><span class="tag">.spinner · Buttons, kleine Bereiche</span></div>
+  <div class="card cell"><div class="demo"><span class="loader-bars" role="status"><i></i><i></i><i></i><i></i><span class="loader-text">Lädt</span></span></div><span class="tag">.loader-bars · Audio, Aufnahme</span></div>
+  <div class="card cell"><div class="demo"><svg class="icon loader-star" style="width:2rem;height:2rem" role="status" aria-label="Denkt nach"><use href="#i-asterisk"/></svg><span class="shimmer-text">Denke nach …</span></div><span class="tag">.loader-star + .shimmer-text · KI-Antworten</span></div>
+  <div class="card cell"><div class="demo"><span class="dots" role="status"><i></i><i></i><i></i><span class="loader-text">Schreibt</span></span><span class="loader-ping" role="status"><span class="loader-text">Live</span></span></div><span class="tag">.dots · .loader-ping · Tippen, Live-Status</span></div>
+ </div></section>
+
+ <section><h2>Bei Aktionen</h2><div class="card-grid">
+  <div class="card cell"><div class="demo"><button class="btn btn--primary btn--pill" id="busyBtn"><svg class="icon"><use href="#i-check"/></svg><span>Speichern</span></button></div><span class="tag">.btn[aria-busy="true"] · Breite bleibt gleich</span></div>
+  <div class="card cell"><div class="demo" style="display:grid;width:100%;gap:var(--space-3)"><div class="progress" id="prog"><i></i></div><div class="progress progress--indeterminate"><i></i></div><button class="btn btn--secondary btn--pill" id="progBtn" style="justify-self:start">Fortschritt starten</button></div><span class="tag">.progress · bekannt oder unbestimmt</span></div>
+  <div class="card cell"><div class="demo"><button class="btn btn--secondary btn--pill" id="topBtn">Seitenwechsel simulieren</button></div><span class="tag">.topbar-progress · TopBar.start() / done()</span></div>
+  <div class="card cell"><ol class="steps" id="steps"><li data-state="todo">Analysiere die Anfrage</li><li data-state="todo">Plane die Struktur</li><li data-state="todo">Schreibe den Entwurf</li></ol><div class="row"><span class="tag">.steps · mehrstufige Aufgaben</span><button class="btn btn--ghost" id="stepsBtn" aria-label="Schritte neu starten" style="min-width:2.5rem;min-height:2.5rem"><svg class="icon"><use href="#i-rotate-ccw"/></svg></button></div></div>
+ </div></section>
+
+ <section><h2>Inhalte laden</h2><div class="card-grid">
+  <div class="card cell"><div class="content-swap" id="swap" style="width:100%">
+    <div class="skeleton-card" data-skel aria-busy="true"><div class="skeleton skeleton--shimmer skeleton--block"></div><div class="skeleton skeleton--shimmer skeleton--title"></div><div class="skeleton skeleton--shimmer skeleton--line"></div><div class="skeleton skeleton--shimmer skeleton--line" style="width:70%"></div></div>
+    <div class="skeleton-card" data-real><div class="tile tile--slides" style="aspect-ratio:16/9;width:100%"><svg class="icon" style="width:2rem;height:2rem"><use href="#i-presentation"/></svg></div><h3 style="margin:0;font-size:var(--text-base)">Quartalsbericht</h3><p style="margin:0;color:var(--color-text-secondary);font-size:var(--text-sm)">Zuletzt bearbeitet vor 2 Stunden.</p></div></div>
+   <div class="row"><span class="tag">.skeleton--shimmer · .content-swap</span><button class="btn btn--ghost" id="swapBtn" aria-label="Laden simulieren" style="min-width:2.5rem;min-height:2.5rem"><svg class="icon"><use href="#i-rotate-ccw"/></svg></button></div></div>
+  <div class="card cell"><div style="width:100%"><img class="sample-img blur-up" id="blur" alt="Farbverlauf als Beispielbild" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 360'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23d97757'/%3E%3Cstop offset='1' stop-color='%23632508'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='640' height='360' fill='url(%23g)'/%3E%3C/svg%3E"></div>
+   <div class="row"><span class="tag">.blur-up · Bild erst unscharf</span><button class="btn btn--ghost" id="blurBtn" aria-label="Bild neu laden" style="min-width:2.5rem;min-height:2.5rem"><svg class="icon"><use href="#i-rotate-ccw"/></svg></button></div></div>
+  <div class="card cell"><div class="demo"><button class="btn btn--primary btn--pill" id="preBtn"><svg class="icon"><use href="#i-sparkles"/></svg>Preloader abspielen</button></div><span class="tag">.preloader · Logo zeichnet sich, echter Zähler, Vorhang nach oben</span></div>
+ </div></section>
+
+ <section><h2>Eintritts-Animationen</h2>
+  <div class="fx-grid" id="fxGrid">
+   <div class="tile-fx fx-fade-up">fade-up</div><div class="tile-fx fx-scale-in" style="--i:1">scale-in</div><div class="tile-fx fx-blur-in" style="--i:2">blur-in</div>
+   <div class="tile-fx fx-clip-up" style="--i:3">clip-up</div><div class="tile-fx fx-from-left" style="--i:4">from-left</div><div class="tile-fx fx-from-right" style="--i:5">from-right</div></div>
+  <div class="row" style="margin-top:var(--space-4)"><button class="btn btn--secondary btn--pill" id="fxBtn"><svg class="icon"><use href="#i-rotate-ccw"/></svg>Erneut abspielen</button></div>
+ </section>
+
+ <section><h2>Text-Maske und Zahlen</h2><div class="card-grid">
+  <div class="card cell"><p class="big" id="split">Ruhige Oberflächen für laute Ideen.</p><div class="row"><span class="tag">FX.splitWords(el) · .split-in</span><button class="btn btn--ghost" id="splitBtn" aria-label="Text erneut abspielen" style="min-width:2.5rem;min-height:2.5rem"><svg class="icon"><use href="#i-rotate-ccw"/></svg></button></div></div>
+  <div class="card cell"><div class="row" style="gap:var(--space-8)" id="ticks"><div class="stat"><span class="stat__value"><span class="ticker" style="--to:128"></span></span><span class="stat__label">Projekte</span></div><div class="stat"><span class="stat__value"><span class="ticker" style="--to:99"></span> %</span><span class="stat__label">Zufrieden</span></div></div><span class="tag">.ticker · reines CSS (@property)</span></div>
+ </div></section>
+
+ <section><h2>Bewegung im Detail</h2><div class="card-grid">
+  <div class="card cell"><div class="demo"><div class="card hover-lift" style="padding:var(--space-4)">Hover-Lift</div><a class="link-grow" href="#">Unterstreichen</a><button class="btn btn--secondary btn--pill hover-arrow">Weiter<svg class="icon"><use href="#i-arrow-right"/></svg></button></div><span class="tag">.hover-lift · .link-grow · .hover-arrow</span></div>
+  <div class="card cell"><div class="demo"><label class="switch"><input type="checkbox" checked aria-label="Benachrichtigungen"><span></span></label><span>Benachrichtigungen</span></div><span class="tag">.switch · Feder</span></div>
+  <div class="card cell" style="grid-column: 1 / -1"><div class="marquee" aria-hidden="true"><div class="marquee__track"><span class="pill">Design</span><span class="pill">Frontend</span><span class="pill">Animation</span><span class="pill">Barrierefreiheit</span><span class="pill">Performance</span></div><div class="marquee__track"><span class="pill">Design</span><span class="pill">Frontend</span><span class="pill">Animation</span><span class="pill">Barrierefreiheit</span><span class="pill">Performance</span></div></div><span class="tag">.marquee · pausiert bei Hover, steht bei reduzierter Bewegung still</span></div>
+ </div></section>
+</main>
+
+<script>
+/*@inline effects.js*/
+/*@inline preloader.js*/
+const $ = s => document.querySelector(s), root = document.documentElement;
+/* Stil und Theme: Kreis-Reveal ab dem Knopf */
+$('#styleBtn').onclick = () => { if (root.dataset.style === 'modern') delete root.dataset.style; else { root.dataset.style = 'modern'; root.dataset.theme = 'dark'; } };
+$('#themeBtn').onclick = e => FX.themeSwitch(e.currentTarget, () => { delete root.dataset.style; root.dataset.theme = root.dataset.theme === 'light' ? 'dark' : 'light'; });
+/* Button-Ladezustand */
+$('#busyBtn').onclick = e => { const b = e.currentTarget; b.setAttribute('aria-busy', 'true'); b.querySelector('span').textContent = 'Speichere …'; setTimeout(() => { b.removeAttribute('aria-busy'); b.querySelector('span').textContent = 'Gespeichert'; setTimeout(() => b.querySelector('span').textContent = 'Speichern', 1400); }, 1600); };
+/* Fortschritt (Demo: in echt kommt der Wert aus Upload oder Download) */
+$('#progBtn').onclick = () => { const p = $('#prog'); let v = 0; (function f() { v = Math.min(1, v + .012 + Math.random() * .02); p.style.setProperty('--p', v); if (v < 1) setTimeout(f, 60); })(); };
+$('#topBtn').onclick = () => { TopBar.start(); setTimeout(() => TopBar.done(), 1800); };
+/* Schritte */
+const stepEls = [...document.querySelectorAll('#steps li')];
+function runSteps() { stepEls.forEach(li => li.dataset.state = 'todo'); stepEls.forEach((li, i) => { setTimeout(() => li.dataset.state = 'active', i * 1100); setTimeout(() => li.dataset.state = 'done', i * 1100 + 1000); }); }
+$('#stepsBtn').onclick = runSteps; runSteps();
+/* Skeleton zu Inhalt */
+function swap() { const s = $('#swap'); s.classList.remove('loaded'); setTimeout(() => s.classList.add('loaded'), 1800); } $('#swapBtn').onclick = swap; swap();
+/* Bild unscharf zu scharf */
+function blur() { const i = $('#blur'); i.classList.remove('ready'); setTimeout(() => i.classList.add('ready'), 900); } $('#blurBtn').onclick = blur; blur();
+/* Preloader */
+$('#preBtn').onclick = () => Preloader.start({ minMs: 1800 });
+/* Eintritts-Animationen erneut abspielen */
+const replayAll = (sel) => document.querySelectorAll(sel).forEach(el => { el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; });
+$('#fxBtn').onclick = () => replayAll('#fxGrid > *');
+/* Text-Maske und Zahlen */
+FX.splitWords($('#split')); $('#split').classList.add('split-in');
+$('#splitBtn').onclick = () => { const s = $('#split'); s.classList.remove('split-in'); void s.offsetWidth; s.classList.add('split-in'); replayAll('#split .mask > span'); replayAll('#ticks .ticker'); };
+</script>
+</body>
+</html>

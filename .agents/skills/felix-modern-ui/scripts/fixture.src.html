@@ -1,0 +1,47 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Fixture</title>
+<style>
+/*@inline tokens.css*/
+/*@inline motion.css*/
+/*@inline components.css*/
+/*@inline modern.css*/
+/*@inline site.css*/
+/*@inline loaders.css*/
+/*@inline effects.css*/
+body { padding: 1rem; } .fx { display: grid; gap: .5rem; align-items: start; justify-items: start; }
+</style></head><body>
+<!--@inline icons.svg-->
+<div class="fx">
+<h1 data-spec="h1">Titel</h1><h2 data-spec="h2">Titel</h2><h1 class="display" data-spec=".display">Display</h1>
+<p data-spec="p">Fließtext</p><p class="lead" data-spec=".lead">Lead</p><p class="eyebrow" data-spec=".eyebrow">Eyebrow</p>
+<button class="btn btn--primary" data-spec=".btn--primary">Primär</button>
+<button class="btn btn--secondary" data-spec=".btn--secondary">Sekundär</button>
+<button class="btn btn--ghost" data-spec=".btn--ghost"><svg class="icon"><use href="#i-plus"/></svg></button>
+<button class="btn btn--primary btn--pill" data-spec=".btn--pill">Pill</button>
+<button class="btn btn--primary btn--cta" data-spec=".btn--cta" style="width:300px">CTA</button>
+<button class="btn btn--primary" disabled data-spec=".btn:disabled">Aus</button>
+<button class="chip" data-spec=".chip">Chip</button><span class="badge" data-spec=".badge">Badge</span><span class="badge-pro" data-spec=".badge-pro">Pro</span>
+<div class="card" data-spec=".card">Karte</div>
+<div class="card-grid" data-spec=".card-grid"><div>a</div><div>b</div></div>
+<div class="stat"><span class="stat__label" data-spec=".stat__label">Label</span><span class="stat__value" data-spec=".stat__value">1.240</span></div>
+<input class="input" data-spec=".input" value="Text" aria-label="x"><textarea class="input prompt__input" data-spec=".prompt__input" rows="1" aria-label="y"></textarea>
+<div class="field"><label data-spec=".field label">Label</label></div>
+<button class="nav-item" data-spec=".nav-item">Eintrag</button><button class="nav-item" aria-current="page" data-spec=".nav-item[aria-current]">Aktiv</button>
+<div class="segment" data-spec=".segment"><button data-spec=".segment > button">A</button><button aria-selected="true" data-spec=".segment > [aria-selected]">B</button></div>
+<div class="tile tile--slides" style="width:120px" data-spec=".tile"><svg class="icon"><use href="#i-presentation"/></svg></div>
+<div class="menu" data-spec=".menu">Menü</div>
+<div class="toast" data-spec=".toast"><svg class="icon"><use href="#i-check"/></svg>Hinweis</div>
+<table class="table"><thead><tr><th data-spec=".table th">Kopf</th></tr></thead><tbody><tr><td data-spec=".table td">Zelle</td></tr></tbody></table>
+<svg class="icon" data-spec=".icon"><use href="#i-plus"/></svg>
+<button class="icon-btn" data-spec=".icon-btn"><svg class="icon"><use href="#i-plus"/></svg></button><span class="avatar-chip" data-spec=".avatar-chip">AB</span>
+<button class="opt-chip" data-spec=".opt-chip">Option</button>
+<form class="prompt" data-spec=".prompt" style="width:300px"><div class="prompt__row"><span>x</span></div></form>
+<div class="list-row" data-spec=".list-row" style="width:300px"><span>a</span><span>b</span><span>c</span></div>
+<label class="switch" data-spec=".switch"><input type="checkbox" aria-label="s"><span></span></label>
+<span class="spinner" data-spec=".spinner"></span><span class="loader-bars" data-spec=".loader-bars"><i></i><i></i></span><span class="loader-ping" data-spec=".loader-ping"></span>
+<div class="progress" data-spec=".progress" style="width:200px"><i></i></div>
+<span class="skeleton skeleton--line" data-spec=".skeleton--line" style="width:120px"></span><span class="skeleton skeleton--title" data-spec=".skeleton--title" style="width:120px"></span><span class="skeleton skeleton--avatar" data-spec=".skeleton--avatar"></span>
+<ol class="steps"><li data-spec=".steps li">Schritt</li></ol>
+<div class="site-nav"><div class="container site-nav__bar" data-spec=".site-nav__bar">x</div></div>
+<div class="container" data-spec=".container" style="width:100%">x</div><div class="section" data-spec=".section">x</div>
+<a class="skip-link" href="#" data-spec=".skip-link">Skip</a>
+</div></body></html>

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Komponenten-Katalog</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Source+Serif+4:wght@400&display=swap">
+<style>
+/*@inline tokens.css*/
+/*@inline motion.css*/
+/*@inline components.css*/
+/*@inline modern.css*/
+.cat { max-width: var(--size-content-max); margin: 0 auto; padding: var(--space-8) var(--space-4) var(--space-16); display: grid; gap: var(--space-12); }
+.cat header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.cat h1 { font-size: var(--text-title); }
+.cat h2 { font-size: var(--text-lg); margin-bottom: var(--space-4); }
+.row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: var(--space-2); }
+.sw { border-radius: var(--radius-md); padding: var(--space-3); font-size: var(--text-xs); border: 1px solid var(--color-border-default); }
+</style>
+</head>
+<body>
+<!--@inline icons.svg-->
+<div class="cat behind" id="app">
+ <header><h1 class="anim-rise">Komponenten-Katalog</h1>
+  <div class="row"><button class="btn btn--secondary pressable" id="style"><svg class="icon"><use href="#i-wand-sparkles"/></svg>Stil: Claude / Modern</button>
+  <button class="btn btn--secondary pressable" id="theme"><svg class="icon"><use href="#i-sun"/></svg>Hell / Dunkel</button></div></header>
+
+ <section><h2>Flächenstufen</h2><div class="swatches" id="sw"></div></section>
+
+ <section><h2>Buttons</h2><div class="row">
+  <button class="btn btn--primary"><svg class="icon"><use href="#i-sparkles"/></svg>Primär</button>
+  <button class="btn btn--secondary">Sekundär</button><button class="btn btn--ghost" aria-label="Mehr"><svg class="icon"><use href="#i-ellipsis"/></svg></button>
+  <button class="btn btn--primary" disabled>Deaktiviert</button></div></section>
+
+ <section><h2>Chips, Badge, Segment</h2><div class="row">
+  <button class="chip"><svg class="icon"><use href="#i-pencil"/></svg>Schreiben</button><button class="chip"><svg class="icon"><use href="#i-code"/></svg>Code</button>
+  <span class="badge">Upgrade</span>
+  <div class="segment" role="tablist"><button role="tab" aria-selected="true">Monatlich</button><button role="tab" aria-selected="false">Jährlich</button></div></div></section>
+
+ <section><h2>Eingabe und Navigation</h2><div class="card-grid">
+  <input class="input" placeholder="Wie kann ich dir helfen?" aria-label="Beispiel-Eingabe">
+  <div class="card" style="padding:var(--space-2)"><button class="nav-item" aria-current="page"><svg class="icon"><use href="#i-message-square"/></svg>Aktiv</button><button class="nav-item"><svg class="icon"><use href="#i-folder"/></svg>Projekte</button></div></div></section>
+
+ <section><h2>Karte, Kennzahl, Kacheln</h2><div class="card-grid">
+  <div class="card stat"><span class="stat__label">Umsatz heute</span><span class="stat__value">1.240 €</span></div>
+  <div class="card"><div class="row"><div class="tile tile--doc" style="width:5rem"><svg class="icon"><use href="#i-file-text"/></svg></div><div class="tile tile--slides" style="width:5rem"><svg class="icon"><use href="#i-presentation"/></svg></div><div class="tile tile--design" style="width:5rem"><svg class="icon"><use href="#i-layout-grid"/></svg></div></div></div></div></section>
+
+ <section><h2>Hinweise</h2><div class="card-grid">
+  <div class="toast" data-kind="success"><svg class="icon"><use href="#i-check"/></svg><span>Gespeichert</span></div>
+  <div class="toast" data-kind="warning"><svg class="icon"><use href="#i-triangle-alert"/></svg><span>Fast voll</span></div>
+  <div class="toast" data-kind="error"><svg class="icon"><use href="#i-circle-help"/></svg><span>Fehlgeschlagen</span></div></div></section>
+
+ <section><h2>Tabelle</h2><div class="card"><table class="table"><thead><tr><th>Nr.</th><th>Produkt</th><th>Betrag</th></tr></thead>
+  <tbody><tr><td>1041</td><td>Flat White</td><td>3,90 €</td></tr><tr><td>1042</td><td>Cold Brew</td><td>4,20 €</td></tr></tbody></table></div></section>
+
+ <section><h2>Laden und Streaming</h2><div class="row"><span class="dots"><i></i><i></i><i></i></span><span class="skeleton" style="width:10rem"></span>
+  <span class="prose" style="font-family:var(--font-display)">Text erscheint<span class="caret"></span></span></div></section>
+
+ <section><h2>Modern-Komponenten</h2><div class="row" style="margin-bottom:var(--space-4)">
+  <button class="icon-btn" data-tip="Verlauf" aria-label="Verlauf"><svg class="icon"><use href="#i-history"/></svg></button>
+  <button class="icon-btn is-on" aria-label="Aktiv"><svg class="icon"><use href="#i-settings"/></svg></button>
+  <span class="avatar-chip">AB</span><span class="badge-pro">Pro</span>
+  <button class="opt-chip"><svg class="icon" style="width:1rem;height:1rem"><use href="#i-box"/></svg>Funke · 2</button>
+  <button class="opt-chip" aria-pressed="true"><svg class="icon" style="width:1rem;height:1rem"><use href="#i-wand-sparkles"/></svg>Verbessern <span class="plus">+1</span></button></div>
+  <form class="prompt is-busy" onsubmit="return false"><div class="line-loader"></div><div class="error-strip"><svg class="icon"><use href="#i-circle-alert"/></svg><span>Der Generator ist gerade nicht erreichbar.</span></div>
+   <div class="prompt__row"><button type="button" class="icon-btn" aria-label="Optionen"><svg class="icon"><use href="#i-settings"/></svg></button><textarea class="prompt__input" rows="1" aria-label="Beschreibung" placeholder="Beschreibe dein Bild …"></textarea><button class="btn btn--primary btn--pill">Generieren</button></div></form></section>
+
+ <section><h2>Menü und Sheet</h2><div class="row"><div class="menu" style="min-width:12rem"><button class="nav-item"><svg class="icon"><use href="#i-settings"/></svg>Einstellungen</button><button class="nav-item"><svg class="icon"><use href="#i-log-out"/></svg>Abmelden</button></div>
+  <button class="btn btn--primary pressable" id="open">Bottom-Sheet öffnen</button></div></section>
+</div>
+
+<div class="sheet-scrim" id="scrim"></div>
+<section class="sheet" id="sheet" aria-labelledby="st">
+ <div class="sheet__grab" id="grab"><h2 class="sheet__title" id="st">Bottom-Sheet</h2></div>
+ <div class="sheet__body"><p>Am Griff ziehen, mit Schwung loslassen.</p></div>
+</section>
+
+<script>
+/*@inline sheet.js*/
+const root = document.documentElement;
+try { const t = localStorage.getItem('theme'); if (t) root.dataset.theme = t; } catch (e) {}
+try { const st = localStorage.getItem('style'); if (st) root.dataset.style = st; } catch (e) {}
+document.getElementById('style').onclick = () => { const v = root.dataset.style === 'modern' ? '' : 'modern'; if (v) root.dataset.style = v; else delete root.dataset.style; try { localStorage.setItem('style', v); } catch (e) {} };
+document.getElementById('theme').onclick = () => { const t = root.dataset.theme === 'light' ? 'dark' : 'light'; root.dataset.theme = t; try { localStorage.setItem('theme', t); } catch (e) {} };
+const sheet = new Sheet(document.getElementById('sheet'), { detents: [.5, 1], handle: document.getElementById('grab'), scrim: document.getElementById('scrim'), behind: document.getElementById('app') });
+document.getElementById('open').onclick = () => sheet.open();
+['deep','canvas','base','topbar','sidebar','panel','segment','elevated','segment-active','active'].forEach(n => {
+  const d = document.createElement('div'); d.className = 'sw'; d.style.background = `var(--color-bg-${n})`; d.textContent = 'bg-' + n; document.getElementById('sw').append(d);
+});
+</script>
+</body>
+</html>

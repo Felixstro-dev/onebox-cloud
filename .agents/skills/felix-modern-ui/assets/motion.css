@@ -1,0 +1,59 @@
+/* Felix Modern UI: Bewegung. Nur Opacity, translate und kleine Skalierung, höchstens 300 ms.
+   Schleifen (pulse, caret) sind die einzige Ausnahme und nur für Lade- und Streaming-Zustände. */
+
+@keyframes rise  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes fade  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop   { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes pulse { 0%, 100% { opacity: .3; transform: scale(.8); } 50% { opacity: 1; transform: scale(1); } }
+@keyframes spin-in { from { opacity: 0; transform: rotate(-60deg) scale(.8); } to { opacity: 1; transform: none; } }
+@keyframes slide-in-right { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+
+/* Einmalige Einblendungen */
+.anim-rise { animation: rise var(--duration-slow) var(--ease-out) both; }
+.anim-fade { animation: fade var(--duration-slow) var(--ease-out) both; }
+.anim-pop  { animation: pop var(--duration-fast) var(--ease-out) both; }
+.anim-spin-in { animation: spin-in var(--duration-slow) var(--ease-out) both; } /* Logo im Hero */
+
+/* Gestaffelt: Kinder bekommen style="--i:0,1,2…" */
+.stagger > * { animation: rise var(--duration-slow) var(--ease-out) both; animation-delay: calc(var(--i, 0) * 60ms + 150ms); }
+
+/* Lade-Punkte: drei orange Punkte, versetzt pulsierend (1,2 s) */
+.dots { display: inline-flex; gap: .25rem; align-items: center; }
+.dots i { width: .375rem; height: .375rem; border-radius: var(--radius-pill); background: var(--color-accent-brand); animation: pulse 1.2s ease-in-out infinite; }
+.dots i:nth-child(2) { animation-delay: .15s; }
+.dots i:nth-child(3) { animation-delay: .3s; }
+
+/* Streaming: jedes Wort blendet ein, ein Punkt wandert am Textende mit */
+.w { animation: fade var(--duration-base) ease-out both; }
+.caret { display: inline-block; width: .5rem; height: .5rem; margin-left: .25rem; border-radius: var(--radius-pill);
+         background: var(--color-accent-brand); vertical-align: middle; animation: pulse 1.2s ease-in-out infinite; }
+
+/* Skeleton: Platzhalter pulsieren, danach blendet der echte Inhalt ein */
+.skeleton { display: block; height: .75rem; border-radius: var(--radius-pill); background: var(--color-bg-active); opacity: .5; animation: pulse 1.2s ease-in-out infinite; }
+
+/* Reveal-Sequenz: Container bekommt .ready, Kinder mit .rv blenden gestaffelt ein */
+.rv { opacity: 0; }
+.ready .rv { animation: rise var(--duration-slow) var(--ease-out) both; animation-delay: calc(var(--i, 0) * 90ms + 100ms); }
+
+/* Popup-Menü: Fade + 4 px nach oben (150 ms) */
+.pop-menu { opacity: 0; transform: translateY(4px); visibility: hidden;
+            transition: opacity 150ms ease-out, transform 150ms ease-out, visibility 0s 150ms; }
+.pop-menu.open { opacity: 1; transform: none; visibility: visible; transition-delay: 0s; }
+
+/* ===== Apple-artige Bewegung (Feder, Gesten) ===== */
+/* Druck-Feedback: schnell runter, mit Feder zurück */
+.pressable { transition: transform var(--duration-spring) var(--ease-spring); }
+.pressable:active { transform: scale(.96); transition-duration: 80ms; }
+
+/* Aufspringen von unten: Karten, Toasts, Tastatur-Leisten, Mini-Player */
+@keyframes rise-spring { from { opacity: 0; transform: translateY(24px) scale(.98); } to { opacity: 1; transform: none; } }
+.anim-rise-spring { animation: rise-spring var(--duration-spring) var(--ease-spring) both; }
+@keyframes from-bottom { from { transform: translateY(100%); } to { transform: none; } }
+.anim-from-bottom { animation: from-bottom var(--duration-sheet) var(--ease-sheet) both; }
+
+/* Push-Navigation wie iOS: neue Ansicht schiebt von rechts herein, die alte weicht um 30 % zurück */
+.views { position: relative; overflow: hidden; }
+.view { position: absolute; inset: 0; background: var(--color-bg-base); transition: transform var(--duration-sheet) var(--ease-sheet), opacity var(--duration-sheet) var(--ease-sheet); }
+.view[data-state="ahead"]  { transform: translateX(100%); visibility: hidden; }
+.view[data-state="behind"] { transform: translateX(-30%); opacity: .6; visibility: hidden; }
+.view[data-state="current"] { transform: none; visibility: visible; }

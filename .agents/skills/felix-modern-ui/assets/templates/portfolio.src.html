@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="de" data-style="modern">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Dein Name: Designer und Entwickler</title>
+<meta name="description" content="Portfolio von Dein Name: ruhige, schnelle Oberflächen für Produkte und Marken.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Source+Serif+4:ital,wght@1,400&display=swap">
+<script>document.documentElement.classList.add('js', 'is-loading')</script>
+<style>
+/*@inline tokens.css*/
+/*@inline motion.css*/
+/*@inline components.css*/
+/*@inline modern.css*/
+/*@inline site.css*/
+/*@inline loaders.css*/
+/*@inline effects.css*/
+/*@inline portfolio.css*/
+:root[data-style="modern"] { --color-accent-brand: #d6ff5c; }  /* persönliche Signaturfarbe: hier ändern */
+html { scroll-behavior: smooth; } @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+.pf-hero { min-height: min(100dvh, 62rem); display: grid; align-content: space-between; gap: var(--space-12); padding-block: var(--space-6) var(--space-12); }
+.pf-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-height: var(--size-nav); }
+.pf-hero__body { display: grid; gap: var(--space-8); }
+.pf-two { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-12); }
+.pf-facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.pf-facts li { display: flex; justify-content: space-between; gap: var(--space-4); padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border-default); }
+.pf-facts span:first-child { color: var(--color-text-secondary); }
+@media (max-width: 759px) { .pf-two { grid-template-columns: 1fr; gap: var(--space-8); } }
+.case h3 { font-size: var(--text-title); margin: 0 0 var(--space-3); }
+.case dl { display: grid; grid-template-columns: auto 1fr; gap: var(--space-2) var(--space-6); margin: var(--space-6) 0; font-size: var(--text-sm); }
+.case dt { color: var(--color-text-secondary); } .case dd { margin: 0; }
+.case__shot { aspect-ratio: 16/10; border-radius: var(--radius-lg); background: var(--color-bg-active); display: grid; place-items: center; color: var(--color-text-secondary); margin-top: var(--space-6); }
+</style>
+</head>
+<body>
+<!--@inline icons.svg-->
+<div class="preloader" data-exit="up" role="status" aria-live="polite"><div class="preloader__inner"><svg class="preloader__logo" viewBox="0 0 24 24" aria-hidden="true"><path pathLength="1" d="M12 6v12"/><path pathLength="1" d="M17.196 9 6.804 15"/><path pathLength="1" d="m6.804 9 10.392 6"/></svg><div class="preloader__count" aria-hidden="true">000</div><span class="loader-text">Seite lädt</span></div><div class="preloader__bar" aria-hidden="true"><i></i></div></div>
+<a class="skip-link" href="#arbeiten">Zu den Arbeiten springen</a>
+<div class="spot" aria-hidden="true"></div>
+<div class="sheet-scrim" id="scrim"></div>
+
+<div class="pf" id="page">
+ <div class="container pf-cols" data-x="container · max 56rem · 12 Spalten · gap 16">
+  <section class="pf-hero" data-x="hero · min 100dvh · space-between">
+   <header class="pf-top" data-x="nav · 60px">
+    <a class="wordmark" href="#" style="text-decoration:none;color:inherit"><svg class="icon"><use href="#i-asterisk"/></svg>Dein Name</a>
+    <div class="cluster" style="gap:var(--space-1)">
+     <nav class="site-nav__links" aria-label="Hauptnavigation"><a href="#arbeiten">Arbeiten</a><a href="#ueber">Über mich</a><a href="#kontakt">Kontakt</a></nav>
+     <button class="btn btn--secondary btn--pill xr-toggle" id="xr" aria-pressed="false" data-tip="Taste X" data-tip-pos="bottom" style="min-height:2.25rem;padding:0 .875rem;font-size:.8125rem"><svg class="icon" style="width:1rem;height:1rem"><use href="#i-scan-eye"/></svg>X-Ray</button>
+    </div>
+   </header>
+   <div class="pf-hero__body">
+    <p class="pf-now pf-mono" data-x="status · mono 12px"><span id="clockMe">Berlin --:--</span><span id="clockYou">Bei dir --:--</span><span>Offen für Projekte ab Januar</span></p>
+    <h1 class="pf-name anim-rise" data-x="h1 · Geist 600 · −0.055em · clamp 48–152px">Ruhige <em>Oberflächen</em> für laute Ideen.</h1>
+    <p class="pf-statement" data-x="statement · Geist 500 · max 30ch">Ich gestalte und baue digitale Produkte, die sich anfühlen, als hätten sie schon immer so funktioniert.</p>
+   </div>
+   <p class="pf-mono" data-x="hinweis">↓ Arbeiten · Drück X, um die Seite zu inspizieren</p>
+  </section>
+
+  <section id="arbeiten" class="section" data-x="section · py 96">
+   <div class="section__head"><h2 class="reveal" data-x="h2 · Geist 600 · −0.035em">Ausgewählte Arbeiten</h2></div>
+   <ul class="pf-index" id="index" data-x="liste · Zeilen 72px · Hover: +12px, Pfeil → Akzent"></ul>
+  </section>
+
+  <section id="ueber" class="section" data-x="section · py 96">
+   <div class="pf-two">
+    <div class="stack"><h2 class="reveal" style="font-size:var(--text-title)">Über mich</h2><p class="lead reveal" style="--i:1">Ich arbeite an der Schnittstelle von Gestaltung und Code. Mir ist wichtig, dass Dinge schnell sind, ruhig wirken und sich richtig anfühlen, auch in Details wie Bewegung und Abständen.</p></div>
+    <ul class="pf-facts reveal" data-x="liste · Linien 1px"><li><span>Schwerpunkt</span><span>Produktdesign, Frontend</span></li><li><span>Werkzeuge</span><span>Figma, TypeScript, Svelte</span></li><li><span>Ort</span><span>Baden-Württemberg</span></li><li><span>Sprachen</span><span>Deutsch, Englisch</span></li></ul>
+   </div>
+  </section>
+
+  <section id="kontakt" class="section" data-x="section · py 96">
+   <p class="pf-mono reveal">Sag Hallo</p>
+   <div class="cluster reveal" style="--i:1;gap:var(--space-4)"><a class="pf-mail" href="mailto:hallo@example.com" data-x="link · clamp 24–64px">hallo@example.com</a>
+    <button class="icon-btn" id="copy" data-tip="Adresse kopieren" aria-label="E-Mail-Adresse kopieren"><svg class="icon" id="copyIcon"><use href="#i-copy"/></svg></button></div>
+  </section>
+  <footer class="site-footer" style="border:0;padding-top:0"><p style="margin:0" class="pf-mono">© 2026 Dein Name · Gebaut mit Felix Modern UI</p></footer>
+ </div>
+</div>
+
+<div class="pf-peek" id="peek" aria-hidden="true"><div><div class="pf-mono" id="peekMeta"></div><div style="font-size:var(--text-lg);letter-spacing:-.03em" id="peekTitle"></div></div></div>
+<div class="xr-panel" id="xrp" aria-hidden="true"></div>
+
+<section class="sheet" id="caseSheet" aria-labelledby="ct"><div class="sheet__grab" id="grab"><h2 class="sheet__title" id="ct">Fallstudie</h2></div>
+ <div class="sheet__body case" id="caseBody"></div></section>
+
+<script>
+/*@inline sheet.js*/
+/*@inline effects.js*/
+/*@inline preloader.js*/
+const $ = s => document.querySelector(s), root = document.documentElement;
+const reduce = matchMedia('(prefers-reduced-motion: reduce)'), fine = matchMedia('(pointer: fine)');
+
+Preloader.start({ minMs: 1100, once: 'pf-intro' });   // Intro nur beim ersten Besuch pro Sitzung
+
+/* Spotlight: Punktraster leuchtet unter dem Cursor (nur Maus, nicht bei reduzierter Bewegung) */
+let raf = 0, mx = 0, my = 0;
+addEventListener('pointermove', e => { if (!fine.matches || reduce.matches || e.pointerType !== 'mouse') return; mx = e.clientX; my = e.clientY; if (!raf) raf = requestAnimationFrame(() => { raf = 0; root.style.setProperty('--mx', mx + 'px'); root.style.setProperty('--my', my + 'px'); }); }, { passive: true });
+
+/* „Jetzt“-Leiste */
+const fmt = tz => new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: tz }).format(new Date());
+const tick = () => { $('#clockMe').textContent = 'Berlin ' + fmt('Europe/Berlin'); $('#clockYou').textContent = 'Bei dir ' + fmt(undefined); }; tick(); setInterval(tick, 30000);
+
+/* Projekte */
+const projects = [
+  { t: 'Atlas', y: '2026', tags: 'Produktdesign · Web', s: 'Ein Planungswerkzeug für Teams, das ohne Handbuch auskommt.', role: 'Design, Frontend', time: '5 Monate' },
+  { t: 'Nordstrom', y: '2025', tags: 'Markenauftritt', s: 'Neuer Auftritt für einen regionalen Energieanbieter.', role: 'Design', time: '3 Monate' },
+  { t: 'Mosaik', y: '2025', tags: 'App · Frontend', s: 'Eine Foto-App mit Alben, die sich selbst sortieren.', role: 'Frontend', time: '4 Monate' },
+  { t: 'Kleine Dinge', y: '2024', tags: 'Experimente', s: 'Sammlung kleiner Interaktionen und Animationen.', role: 'Design, Code', time: 'laufend' }
+];
+const sheet = new Sheet($('#caseSheet'), { detents: [.6, 1], handle: $('#grab'), scrim: $('#scrim'), behind: $('#page') });
+const idx = $('#index');
+projects.forEach((p, i) => {
+  const li = document.createElement('li'), b = document.createElement('button'); b.className = 'pf-row reveal'; b.style.setProperty('--i', i);
+  b.innerHTML = `<span class="pf-mono">0${i + 1}</span><span class="pf-row__title">${p.t}</span><span class="pf-row__meta pf-mono">${p.tags} · ${p.y}</span><svg class="icon"><use href="#i-arrow-up-right"/></svg>`;
+  b.onmouseenter = () => { $('#peekTitle').textContent = p.t; $('#peekMeta').textContent = p.tags; $('#peek').classList.add('on'); }; b.onmouseleave = () => $('#peek').classList.remove('on');
+  b.onclick = () => { $('#ct').textContent = p.t; $('#caseBody').innerHTML = `<h3>${p.t}</h3><p class="lead">${p.s}</p><dl><dt>Rolle</dt><dd>${p.role}</dd><dt>Dauer</dt><dd>${p.time}</dd><dt>Jahr</dt><dd>${p.y}</dd></dl><div class="case__shot"><svg class="icon" style="width:2rem;height:2rem"><use href="#i-layout-grid"/></svg></div>`; $('#peek').classList.remove('on'); sheet.open(); };
+  li.append(b); idx.append(li);
+});
+addEventListener('pointermove', e => { if (e.pointerType === 'mouse') { const pk = $('#peek'); pk.style.setProperty('--px', e.clientX); pk.style.setProperty('--py', e.clientY); } }, { passive: true });
+
+/* E-Mail kopieren */
+$('#copy').onclick = async () => { try { await navigator.clipboard.writeText('hallo@example.com'); } catch (e) {}
+  $('#copyIcon').innerHTML = '<use href="#i-check"/>'; setTimeout(() => $('#copyIcon').innerHTML = '<use href="#i-copy"/>', 1400); };
+
+/* Einblenden beim Scrollen */
+const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px' });
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+/* ===== X-RAY: die Seite inspiziert sich selbst ===== */
+const xr = $('#xr'), panel = $('#xrp');
+const tokenNames = ['text-primary', 'text-secondary', 'text-tertiary', 'bg-base', 'bg-sidebar', 'bg-elevated', 'bg-active', 'bg-deep', 'accent-brand', 'border-default', 'success'];
+const tokenMap = {}; tokenNames.forEach(n => { const d = document.createElement('div'); d.style.cssText = `position:absolute;visibility:hidden;color:var(--color-${n})`; document.body.append(d); tokenMap[getComputedStyle(d).color] = n; d.remove(); });
+const tokenOf = c => tokenMap[c] ? `<i style="background:${c}"></i>${tokenMap[c]}` : (c === 'rgba(0, 0, 0, 0)' ? 'transparent' : `<i style="background:${c}"></i>${c}`);
+function toggleXray(on) { on = on ?? !root.classList.contains('xray'); root.classList.toggle('xray', on); xr.setAttribute('aria-pressed', on); if (!on) panel.classList.remove('on'); }
+xr.onclick = () => toggleXray();
+addEventListener('keydown', e => { if ((e.key === 'x' || e.key === 'X') && !e.metaKey && !e.ctrlKey && !e.altKey && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) toggleXray(); });
+addEventListener('pointermove', e => {
+  if (!root.classList.contains('xray') || e.pointerType !== 'mouse') return;
+  const el = e.target.closest('main, section, header, footer, h1, h2, h3, p, li, a, button, span, div'); if (!el || el === panel) return;
+  const c = getComputedStyle(el), r = el.getBoundingClientRect();
+  panel.innerHTML = `<b>${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.split(' ')[0] : ''}</b><br>${Math.round(r.width)} × ${Math.round(r.height)} px<br>Schrift ${c.fontFamily.split(',')[0].replace(/"/g, '')} ${c.fontWeight} ${Math.round(parseFloat(c.fontSize))}px<br>Farbe ${tokenOf(c.color)}<br>Fläche ${tokenOf(c.backgroundColor)}<br>Radius ${c.borderTopLeftRadius} · Abstand ${c.padding.split(' ')[0]}<br>Übergang ${c.transitionDuration.split(',')[0]} ${c.transitionTimingFunction.split(',')[0].slice(0, 22)}`;
+  const w = 240, x = Math.min(e.clientX + 16, innerWidth - w - 8), y = Math.min(e.clientY + 16, innerHeight - 150); panel.style.transform = `translate(${x}px, ${y}px)`; panel.classList.add('on');
+}, { passive: true });
+</script>
+</body>
+</html>

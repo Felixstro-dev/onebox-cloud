@@ -1,0 +1,182 @@
+/* Felix Modern UI: Design Tokens (v2)
+   Quelle: Pixelmessung aus Claude-App-Screenshots (Dark) [M], Schätzung [S], Empfehlung [E].
+   Standard ist Dark. Light ist opt-in über <html data-theme="light"> [E]. */
+:root {
+  color-scheme: dark;
+
+  /* Flächen, von tief nach hoch [M] */
+  --color-bg-deep: #0e0e0e;
+  --color-bg-canvas: #141414;
+  --color-bg-base: #191919;
+  --color-bg-topbar: #1d1d1d;
+  --color-bg-sidebar: #1f1f1f;
+  --color-bg-panel: #20201f;
+  --color-bg-segment: #252525;
+  --color-bg-elevated: #303030;
+  --color-bg-segment-active: #3d3d3d;
+  --color-bg-active: #404040;
+  --color-bg-active-hover: #4a4a4a;
+  --color-border-subtle: #282828;
+  --color-border-default: #313131;
+
+  /* Text */
+  --color-text-primary: #f1f1f1;     /* [M] */
+  --color-text-secondary: #9a9a9a;   /* [S] */
+  --color-text-tertiary: #6f6f6f;    /* [S] */
+
+  /* Primär-Button: heller Knopf im Dark, dunkler Knopf im Light.
+     Die alten Namen button-light / text-on-light bleiben als Alias erhalten. */
+  --color-button-primary: #efefef;        /* [M] */
+  --color-button-primary-hover: #ffffff;  /* [E] */
+  --color-text-on-primary: #191919;       /* [S] */
+  --color-button-light: var(--color-button-primary);
+  --color-text-on-light: var(--color-text-on-primary);
+
+  /* Akzente */
+  --color-accent-orange: #d97757;    /* [S] Claude-Orange */
+  --color-accent-brand: var(--color-accent-orange); /* für fremde Produkte überschreiben */
+  --color-accent-blue: #4a9eff;      /* [S] Links, Upgrade-Hinweise */
+  --color-accent-blue-solid: #0a61a3;/* [M] */
+  --color-tile-doc: #0e3d7e;         /* [M] */
+  --color-tile-slides: #632508;      /* [M] */
+  --color-tile-design: #3d2987;      /* [M] */
+  --color-text-on-tile: #f1f1f1;     /* Text auf Kategorie-Kacheln, bleibt in beiden Themes hell */
+
+  /* Status [E] */
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+  --color-error: #f87171;
+  --color-focus-ring: #4a9eff;
+  --color-overlay: rgb(0 0 0 / .22);
+  --color-scrim: color-mix(in srgb, var(--color-bg-deep) 70%, transparent);
+
+  /* Typografie [S] */
+  --font-display: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-ui: Inter, -apple-system, "SF Pro Text", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --text-hero: clamp(2rem, 1.4rem + 2vw, 2.75rem);
+  --text-title: clamp(1.75rem, 1.3rem + 1.5vw, 2.25rem);
+  --text-lg: 1.375rem;
+  --text-base: 1rem;
+  --text-sm: 0.875rem;
+  --text-xs: 0.75rem;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --leading-tight: 1.15;
+  --leading-normal: 1.4;
+  --leading-reading: 1.55;
+
+  /* Abstände (4-px-Raster) [E] */
+  --space-1: .25rem; --space-2: .5rem; --space-3: .75rem; --space-4: 1rem;
+  --space-6: 1.5rem; --space-8: 2rem; --space-12: 3rem; --space-16: 4rem;
+
+  /* Größen */
+  --size-sidebar: 15rem;
+  --size-panel: 26rem;
+  --size-control: 2.5rem;   /* auf Touch-Geräten automatisch 2.75rem, siehe unten */
+  --size-touch: 2.75rem;    /* 44 px, Mindest-Trefferfläche */
+  --size-button: 3rem;
+  --size-icon: 1.25rem;
+  --size-content-max: 56rem;
+  --size-chat-max: 48rem;
+  --size-prompt: 45rem;     /* schwebendes Prompt-Panel */
+  --size-nav: 3.75rem;
+  --size-icon-btn: 2.25rem; /* auf Touch-Geräten automatisch 2.75rem */
+
+  /* Icons: Lucide, Standardstrich ist 2, Claude wirkt feiner [E] */
+  --icon-stroke: 1.75;
+
+  /* Radien [S] */
+  --radius-panel: 1.75rem;  /* schwebendes Prompt-Panel */
+  --radius-sm: .625rem; --radius-md: .75rem; --radius-lg: 1.25rem;
+  --radius-xl: 1.5rem;  --radius-2xl: 2rem;  --radius-pill: 999px;
+
+  /* Schatten (bewusst selten: nur Sheets und Menüs) [E] */
+  --shadow-sheet: 0 -8px 32px rgb(0 0 0 / .35);
+  --shadow-menu: 0 8px 24px rgb(0 0 0 / .3);
+  --shadow-panel: 0 24px 70px rgb(0 0 0 / .45);
+
+  /* Z-Index [E] */
+  --z-sidebar: 10; --z-toolbar: 20; --z-panel: 30; --z-scrim: 35; --z-sheet: 40; --z-menu: 50; --z-tooltip: 60;
+
+  /* Bewegung [E] */
+  --duration-fast: 120ms; --duration-base: 200ms; --duration-slow: 300ms;
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --ease-in-out: cubic-bezier(.4, 0, .2, 1);
+  /* Apple-artig: Sheets und Ebenen (wie iOS-Modal, bekannt als „Vaul-Kurve“), Federn mit leichtem Überschwingen */
+  --duration-sheet: 500ms;
+  --ease-sheet: cubic-bezier(.32, .72, 0, 1);
+  --duration-spring: 500ms;
+  /* Inszenierte Animationen (Preloader-Zeichnung, Zähler): nur dafür, nie für Bedienelemente */
+  --duration-draw: 700ms;
+  --duration-count: 1400ms;
+  --ease-spring: cubic-bezier(.34, 1.3, .64, 1); /* Fallback ohne linear() */
+
+  /* Breakpoints [E] (in @media nicht als var nutzbar, nur Referenz) */
+  --bp-sm: 640px; --bp-md: 900px; --bp-lg: 1180px;
+}
+
+@supports (transition-timing-function: linear(0, 1)) {
+  :root { --ease-spring: linear(0, 0.018, 0.066, 0.134, 0.215, 0.303, 0.393, 0.482, 0.566, 0.644, 0.715, 0.778, 0.833, 0.88, 0.92, 0.952, 0.978, 0.998, 1.013, 1.024, 1.032, 1.036, 1.038, 1.038, 1.037, 1.035, 1.032, 1.029, 1.026, 1.022, 1.019, 1.016, 1.013, 1.01, 1.008, 1.006, 1.004, 1.003, 1.001, 1.001, 1); }
+}
+
+/* Light-Theme [E]: abgeleitet aus der warmen Marken-Palette, NICHT aus Screenshots gemessen. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-bg-deep: #e8e6dc;
+  --color-bg-canvas: #f0eee6;
+  --color-bg-base: #faf9f5;
+  --color-bg-topbar: #f5f4ee;
+  --color-bg-sidebar: #f0eee6;
+  --color-bg-panel: #f5f4ee;
+  --color-bg-segment: #ebe9e0;
+  --color-bg-elevated: #ffffff;
+  --color-bg-segment-active: #ffffff;
+  --color-bg-active: #e8e6dc;
+  --color-bg-active-hover: #dcd9cc;
+  --color-border-subtle: #e8e6dc;
+  --color-border-default: #dcd9cc;
+  --color-text-primary: #141413;
+  --color-text-secondary: #5e5d59;
+  --color-text-tertiary: #87867f;
+  --color-button-primary: #141413;
+  --color-button-primary-hover: #2a2a28;
+  --color-text-on-primary: #faf9f5;
+  --color-accent-orange: #c15f3c;
+  --color-success: #2f8f4e;
+  --color-warning: #b7791f;
+  --color-error: #c93c3c;
+  --color-accent-blue: #2563a8;
+  --color-focus-ring: #2563a8;
+  --color-overlay: rgb(20 20 19 / .12);
+  --shadow-sheet: 0 -8px 32px rgb(20 20 19 / .12);
+  --shadow-menu: 0 8px 24px rgb(20 20 19 / .12);
+  --shadow-panel: 0 24px 70px rgb(20 20 19 / .14);
+}
+
+/* Touch-Ziele: 44 px, sobald ein grober Zeiger (Finger) benutzt wird. */
+@media (pointer: coarse) { :root { --size-control: var(--size-touch); --size-icon-btn: var(--size-touch); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+/* Manuell erzwingbar (Einstellung „Bewegung reduzieren“): <html data-reduce-motion="true"> */
+html[data-reduce-motion="true"] *, html[data-reduce-motion="true"] *::before, html[data-reduce-motion="true"] *::after {
+  animation-duration: .01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .01ms !important;
+}
+
+/* Basis */
+:root { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: inherit; }
+body { margin: 0; background: var(--color-bg-base); color: var(--color-text-primary);
+       font-family: var(--font-ui); font-size: var(--text-base); line-height: var(--leading-normal);
+       -webkit-font-smoothing: antialiased; }
+h1, h2 { font-family: var(--font-display); font-weight: var(--weight-regular); line-height: var(--leading-tight); margin: 0; }
+button, input, textarea, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }

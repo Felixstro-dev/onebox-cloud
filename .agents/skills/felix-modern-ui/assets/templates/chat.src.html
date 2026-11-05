@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Source+Serif+4:wght@400&display=swap">
+<style>
+/*@inline tokens.css*/
+/*@inline motion.css*/
+/*@inline components.css*/
+/*@inline app-shell.css*/
+</style>
+</head>
+<body>
+<!--@inline icons.svg-->
+
+<div class="shell" id="shell" data-panel="closed" data-nav="closed">
+ <aside class="sidebar" id="sidebar" aria-label="Seitenleiste">
+  <div class="brand"><svg class="logo" aria-hidden="true"><use href="#i-asterisk"/></svg>Tüftler</div>
+  <nav aria-label="Hauptnavigation">
+   <button class="nav-item" id="new"><svg class="icon"><use href="#i-plus"/></svg>Neuer Chat</button>
+   <button class="nav-item"><svg class="icon"><use href="#i-search"/></svg>Suchen</button>
+   <button class="nav-item"><svg class="icon"><use href="#i-folder"/></svg>Projekte</button>
+   <button class="nav-item"><svg class="icon"><use href="#i-layout-grid"/></svg>Artefakte</button>
+   <button class="nav-item"><svg class="icon"><use href="#i-code"/></svg>Code</button>
+  </nav>
+  <div class="sec">Letzte Chats</div>
+  <div class="chats" id="chats">
+   <button class="nav-item"><i class="dot"></i><span>Reiseplan Lissabon</span></button>
+   <button class="nav-item"><i class="dot"></i><span>E-Mail an Vermieter</span></button>
+   <button class="nav-item"><i class="dot"></i><span>Python-Skript für CSV</span></button>
+  </div>
+  <div class="profile">
+   <div class="menu" id="menu" role="menu">
+    <button class="nav-item" role="menuitem" id="theme"><svg class="icon"><use href="#i-sun"/></svg><span>Hell / Dunkel</span></button>
+    <button class="nav-item" role="menuitem"><svg class="icon"><use href="#i-settings"/></svg>Einstellungen</button>
+    <button class="nav-item" role="menuitem"><svg class="icon"><use href="#i-circle-help"/></svg>Hilfe</button>
+   </div>
+   <button class="nav-item" id="pbtn" aria-haspopup="menu" aria-expanded="false">
+    <span class="avatar"><svg class="icon"><use href="#i-user"/></svg></span>
+    <span style="flex:1">Mein Profil<small>Free</small></span>
+    <svg class="icon"><use href="#i-chevron-down"/></svg>
+   </button>
+  </div>
+ </aside>
+ <div class="scrim" id="scrim"></div>
+ <div class="sheet-scrim" id="pscrim"></div>
+
+ <main class="main" id="main" data-state="hero">
+  <header class="topbar">
+   <button class="btn btn--ghost menu-btn" id="mbtn" aria-label="Menü öffnen"><svg class="icon"><use href="#i-menu"/></svg></button>
+   <h2 id="title">Neuer Chat</h2>
+   <button class="btn btn--ghost" id="ptoggle" aria-label="Artefakt ein- oder ausblenden"><svg class="icon"><use href="#i-layout-grid"/></svg></button>
+  </header>
+  <div class="pad pad--t"></div>
+  <div class="thread" id="thread" role="log" aria-live="polite"><div class="col" id="msgs"></div></div>
+  <div class="hero col"><h1><svg class="logo" aria-hidden="true"><use href="#i-asterisk"/></svg>Lass uns tüfteln</h1></div>
+  <div class="dock col">
+   <div class="composer">
+    <textarea id="ta" rows="1" placeholder="Wie kann ich dir helfen?" aria-label="Nachricht"></textarea>
+    <div class="cbar">
+     <button class="btn btn--ghost" aria-label="Anhang hinzufügen"><svg class="icon"><use href="#i-plus"/></svg></button>
+     <span class="model">Sonnet 5.5</span>
+     <button class="btn btn--primary send" id="send" data-mode="idle" aria-label="Senden" disabled><svg class="icon i-up"><use href="#i-arrow-up"/></svg><svg class="icon i-stop"><use href="#i-circle-stop"/></svg></button>
+    </div>
+   </div>
+   <div class="chips" id="chips">
+    <button class="chip" style="--i:0" data-p="Hilf mir, eine freundliche E-Mail zu formulieren."><svg class="icon"><use href="#i-pencil"/></svg>Schreiben</button>
+    <button class="chip" style="--i:1" data-p="Erkläre mir, wie Animationen im Web funktionieren."><svg class="icon"><use href="#i-book-open"/></svg>Lernen</button>
+    <button class="chip" style="--i:2" data-p="Schreibe mir ein kleines Code-Beispiel."><svg class="icon"><use href="#i-code"/></svg>Code</button>
+    <button class="chip" style="--i:3" data-p="Erstelle mir eine Präsentation als Artefakt."><svg class="icon"><use href="#i-sun"/></svg>Alltag</button>
+   </div>
+  </div>
+  <div class="pad pad--b"></div>
+ </main>
+
+ <aside class="panel" id="panel" aria-label="Artefakt" inert>
+  <div class="panel-in">
+   <div class="phead"><h2>Entwurf: Projektstart</h2><button class="btn btn--ghost" id="pclose" aria-label="Artefakt schließen"><svg class="icon"><use href="#i-x"/></svg></button></div>
+   <div class="pbody" id="pbody">
+    <div class="slide">
+     <div class="sk" aria-hidden="true"><b class="skeleton"></b><b class="skeleton"></b><b class="skeleton"></b></div>
+     <h2 class="rv" style="--i:0">Projektstart</h2>
+     <p class="rv" style="--i:1">Ziele, Zeitplan und nächste Schritte auf einen Blick.</p>
+     <p class="rv" style="--i:2">Folie 1 von 3</p>
+    </div>
+    <div class="pmeta">
+     <div class="rv" style="--i:3">Erzeugt vor wenigen Sekunden</div>
+     <hr class="rv" style="--i:4">
+     <button class="btn btn--secondary rv" style="--i:5">Exportieren</button>
+    </div>
+   </div>
+  </div>
+ </aside>
+</div>
+
+<script>
+/*@inline sheet.js*/
+</script>
+<script>
+const $=(s,r=document)=>r.querySelector(s), el=(t,c)=>{const n=document.createElement(t);n.className=c||'';return n};
+const shell=$('#shell'),main=$('#main'),msgs=$('#msgs'),thread=$('#thread'),ta=$('#ta'),send=$('#send'),panel=$('#panel'),pbody=$('#pbody');
+const replies=[
+ {k:/artefakt|folie|slide|präsentation|karte/i,artifact:true,t:'Ich habe dir einen ersten Entwurf vorbereitet. Er öffnet sich rechts neben dem Gespräch, damit du ihn direkt prüfen und mit mir weiter anpassen kannst.'},
+ {k:/code|skript|programm/i,t:'Gern. Fang klein an: Ein Skript, das eine Datei einliest, die Zeilen zählt und das Ergebnis ausgibt, reicht für den Anfang. Sag mir die Sprache, dann baue ich dir ein lauffähiges Beispiel.'},
+ {k:/animation/i,t:'Im Web laufen die meisten ruhigen Animationen über Opacity und Transformationen. Sie sind günstig zu berechnen, weil der Browser sie auf der Grafikkarte erledigt und kein Layout neu aufbauen muss.'},
+ {k:/hallo|hi\b|hey/i,t:'Hallo! Schön, dass du da bist. Woran möchtest du heute tüfteln?'},
+ {k:/./,t:'Das klingt nach einem guten Anfang. Lass uns den Gedanken in zwei, drei Schritte zerlegen: erst das Ziel klären, dann die Rahmenbedingungen sammeln und zuletzt einen ersten Entwurf bauen. Womit möchtest du beginnen?'}
+];
+let busy=false,cur=null,n=0;
+const scrollEnd=(s='auto')=>thread.scrollTo({top:thread.scrollHeight,behavior:s});
+function sync(){const has=ta.value.trim().length>0;send.disabled=!busy&&!has;send.dataset.mode=busy?'busy':'idle';send.setAttribute('aria-label',busy?'Stoppen':'Senden')}
+function grow(){ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,200)+'px';sync()}
+function submit(){
+ const text=ta.value.trim();if(!text||busy)return;
+ if(main.dataset.state==='hero'){main.dataset.state='chat';addChat(text)}
+ const a=el('article','msg msg--user'),b=el('div','bubble');b.textContent=text;a.append(b);msgs.append(a);
+ ta.value='';grow();scrollEnd('smooth');respond(text);
+}
+function respond(q){
+ busy=true;sync();
+ const a=el('article','msg msg--ai'),st=el('div','status');
+ st.innerHTML='<span class="dots"><i></i><i></i><i></i></span><span>Denke nach</span><span class="sec-t">0s</span>';
+ a.append(st);msgs.append(a);scrollEnd('smooth');
+ let s=0;const tick=setInterval(()=>{s++;$('.sec-t',st).textContent=s+'s'},1000);
+ const r=replies.find(x=>x.k.test(q));
+ const t1=setTimeout(()=>{clearInterval(tick);st.remove();stream(a,r)},1300+Math.random()*500);
+ cur={a,tick,t1,r};
+}
+function stream(a,r){
+ const p=el('div','prose'),caret=el('span','caret');p.append(caret);a.append(p);
+ const words=r.t.split(' ');let i=0;
+ const iv=setInterval(()=>{
+  if(i<words.length){const w=el('span','w');w.textContent=(i?' ':'')+words[i++];p.insertBefore(w,caret);if(i%6===0)scrollEnd()}
+  else done(false)
+ },reduce.matches?0:34);
+ cur.iv=iv;cur.p=p;cur.caret=caret;cur.words=words;
+}
+function done(stopped){
+ const c=cur;if(!c)return;
+ clearInterval(c.tick);clearTimeout(c.t1);clearInterval(c.iv);
+ if(c.p){c.caret.remove();
+  const act=el('div','actions'),cp=el('button','btn btn--ghost');
+  cp.setAttribute('aria-label','Antwort kopieren');cp.innerHTML='<svg class="icon"><use href="#i-copy"/></svg>';
+  cp.onclick=async()=>{try{await navigator.clipboard.writeText(c.p.textContent)}catch(e){}
+   cp.innerHTML='<svg class="icon swap"><use href="#i-check"/></svg>';setTimeout(()=>cp.innerHTML='<svg class="icon swap"><use href="#i-copy"/></svg>',1400)};
+  act.append(cp);
+  if(c.r.artifact){const ch=el('button','chip');ch.innerHTML='<svg class="icon"><use href="#i-layout-grid"/></svg>Artefakt öffnen';ch.onclick=()=>panelOpen(true);act.append(ch)}
+  c.a.append(act);
+  if(c.r.artifact&&!stopped)panelOpen(true);
+ } else c.a.remove();
+ cur=null;busy=false;sync();scrollEnd('smooth');
+}
+function addChat(t){
+ const b=el('button','nav-item new');b.setAttribute('aria-current','page');
+ const s=el('span');s.textContent=t.length>28?t.slice(0,28)+'…':t;b.innerHTML='<i class="dot"></i>';b.append(s);
+ $('#chats').querySelectorAll('[aria-current]').forEach(x=>x.removeAttribute('aria-current'));
+ $('#chats').prepend(b);$('#title').textContent=t.length>40?t.slice(0,40)+'…':t;
+}
+const reduce=matchMedia('(prefers-reduced-motion: reduce)');
+const root=document.documentElement;
+try{const t=localStorage.getItem('theme');if(t)root.dataset.theme=t}catch(e){}
+$('#theme').onclick=()=>{const t=root.dataset.theme==='light'?'dark':'light';root.dataset.theme=t;try{localStorage.setItem('theme',t)}catch(e){}};
+const mq=matchMedia('(max-width:899px)');let psheet=null;
+function panelOpen(o){
+ shell.dataset.panel=o?'open':'closed';
+ if(mq.matches){
+  psheet=psheet||new Sheet(panel,{detents:[.65,1],handle:$('.phead'),scrim:$('#pscrim'),behind:main,onClose(){shell.dataset.panel='closed'}});
+  o?psheet.open():psheet.close();
+ } else panel.inert=!o;
+ if(o){pbody.classList.remove('ready');setTimeout(()=>pbody.classList.add('ready'),1100)}
+}
+mq.addEventListener('change',()=>{ // Wechsel Mobil/Desktop: Sheet-Zustand zurücksetzen
+ if(psheet)psheet.close();
+ panel.removeAttribute('style');['data-open','aria-hidden','role','aria-modal'].forEach(a=>panel.removeAttribute(a));
+ main.inert=false;main.classList.remove('behind');shell.dataset.panel='closed';panel.inert=true;
+});
+function reset(){
+ if(busy)done(true);msgs.innerHTML='';main.dataset.state='hero';$('#title').textContent='Neuer Chat';
+ $('#chats').querySelectorAll('[aria-current]').forEach(x=>x.removeAttribute('aria-current'));
+ panelOpen(false);shell.dataset.nav='closed';ta.focus();
+}
+const navOpen=o=>shell.dataset.nav=o?'open':'closed';
+const menu=$('#menu'),pbtn=$('#pbtn');
+function menuOpen(o){menu.classList.toggle('open',o);pbtn.setAttribute('aria-expanded',o)}
+send.onclick=()=>busy?done(true):submit();
+ta.addEventListener('input',grow);
+ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();submit()}});
+$('#chips').addEventListener('click',e=>{const c=e.target.closest('.chip');if(c){ta.value=c.dataset.p;grow();ta.focus()}});
+$('#new').onclick=reset;$('#mbtn').onclick=()=>navOpen(true);$('#scrim').onclick=()=>navOpen(false);
+$('#ptoggle').onclick=()=>panelOpen(shell.dataset.panel!=='open');$('#pclose').onclick=()=>panelOpen(false);
+pbtn.onclick=e=>{e.stopPropagation();menuOpen(!menu.classList.contains('open'))};
+document.addEventListener('click',e=>{if(!menu.contains(e.target))menuOpen(false)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){menuOpen(false);navOpen(false);if(shell.dataset.panel==='open')panelOpen(false)}});
+</script>
+</body>
+</html>

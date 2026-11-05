@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="de" data-style="modern">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Lumina: Bilder aus Worten</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap">
+<style>
+/*@inline tokens.css*/
+/*@inline motion.css*/
+/*@inline components.css*/
+/*@inline modern.css*/
+html, body { height: 100%; overflow: hidden; background: var(--color-bg-deep); }
+.app { height: 100dvh; display: flex; flex-direction: column; background: var(--color-bg-base); }
+.landing { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; transition: opacity var(--duration-slow) var(--ease-out), transform var(--duration-slow) var(--ease-out); }
+.landing__content { flex: 1 0 auto; width: min(45rem, 100%); margin: 0 auto; padding: clamp(1.75rem, 6vh, 4.5rem) var(--space-6) var(--space-8); display: grid; gap: 3.25rem; align-content: start; }
+.landing__content section { display: grid; gap: var(--space-4); }
+.landing .lead { margin-top: var(--space-4); }
+.app[data-mode="demo"] .landing { opacity: 0; transform: translateY(-8px); visibility: hidden; pointer-events: none; transition: opacity var(--duration-slow) var(--ease-out), transform var(--duration-slow) var(--ease-out), visibility 0s var(--duration-slow); }
+.app[data-mode="demo"] .stage__scrim { opacity: 0; }
+.app[data-mode="demo"] .stage__art { opacity: .6; }
+.dock { position: absolute; left: 0; right: 0; bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)); z-index: 3; display: flex; justify-content: center; opacity: 0; transform: translateY(calc(100% + 2rem)); visibility: hidden;
+  transition: transform var(--duration-slow) var(--ease-out), opacity var(--duration-slow) var(--ease-out), visibility 0s var(--duration-slow); }
+.app[data-mode="demo"] .dock { opacity: 1; transform: translateY(calc(var(--kb, 0) * -1px)); visibility: visible; transition-delay: 0s; }
+.stage__art .art { transition: opacity var(--duration-slow) var(--ease-out); }
+.stage__art .art[hidden] { display: block; opacity: 0; }
+.sheet__thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr)); gap: var(--space-3); }
+.thumb { aspect-ratio: 1; display: grid; place-items: center; border: 0; border-radius: var(--radius-md); background: var(--color-bg-active); color: var(--color-text-secondary); cursor: pointer; transition: background var(--duration-fast) ease; }
+.thumb:hover { background: var(--color-bg-active-hover); }
+@media (max-width: 639px) { :root { --size-nav: 3.25rem; } .dock { bottom: calc(.625rem + env(safe-area-inset-bottom, 0px)); } .landing__content { padding-inline: var(--space-6); } }
+</style>
+</head>
+<body>
+<!--@inline icons.svg-->
+<div class="app behind" id="app" data-mode="landing">
+ <header class="nav-bar">
+  <div class="wordmark"><svg class="icon"><use href="#i-asterisk"/></svg>Lumina</div>
+  <div class="nav-actions" id="navActions">
+   <button class="btn btn--secondary btn--pill" id="signin" style="min-height:2.125rem;padding:0 .875rem;font-size:.8125rem">Anmelden</button>
+   <button class="icon-btn" id="histBtn" data-tip="Verlauf" data-tip-pos="bottom" aria-label="Verlauf" hidden><svg class="icon"><use href="#i-history"/></svg></button>
+  </div>
+ </header>
+
+ <main class="stage">
+  <div class="stage__art" aria-hidden="true">
+   <svg class="icon art" id="art1"><use href="#i-asterisk"/></svg>
+   <svg class="icon art" id="art2" hidden><use href="#i-sparkles"/></svg>
+  </div>
+  <div class="stage__scrim"></div>
+
+  <div class="landing" id="landing">
+   <div class="landing__content">
+    <div><h1 class="display anim-rise">Beschreibe es. Sieh es in Sekunden.</h1>
+     <p class="lead">Lumina macht aus einem Satz ein fertiges Bild. Live im Browser, ohne Konto zum Ausprobieren, in Originalqualität zum Herunterladen.</p></div>
+    <section><h2 class="eyebrow">Modelle</h2>
+     <div role="list">
+      <div class="list-row" role="listitem"><span>Funke</span><span class="list-row__meta">2 Credits</span><span></span></div>
+      <div class="list-row" role="listitem"><span>Barren</span><span class="list-row__meta">5 Credits</span><span></span></div>
+      <div class="list-row" role="listitem"><span>Kern</span><span class="list-row__meta">7 Credits</span><span class="badge-pro">Pro</span></div>
+     </div>
+     <p class="eyebrow">Neue Konten starten mit 15 Credits. Gratis-Credits füllen sich täglich um 5 auf.</p></section>
+   </div>
+   <div class="cta-bar"><button class="btn btn--primary btn--cta" id="try">Generator ausprobieren</button></div>
+  </div>
+
+  <div class="dock" id="dock">
+   <form class="prompt" id="prompt" novalidate>
+    <div class="line-loader" aria-hidden="true"></div>
+    <div class="error-strip" id="err" role="alert" hidden><svg class="icon"><use href="#i-circle-alert"/></svg><span id="errText"></span></div>
+    <div class="prompt__opts" id="opts"><div><div class="prompt__opts-row">
+     <div class="menu-anchor">
+      <button type="button" class="opt-chip" id="modelBtn" aria-haspopup="menu" aria-expanded="false"><svg class="icon" style="width:1rem;height:1rem"><use href="#i-box"/></svg><span id="modelName">Funke · 2</span><svg class="icon" style="width:1rem;height:1rem"><use href="#i-chevron-down"/></svg></button>
+      <div class="menu-up pop-menu" id="modelMenu" role="menu">
+       <button type="button" class="nav-item" role="menuitem" data-m="Funke · 2"><span>Funke</span><span class="list-row__meta">2</span></button>
+       <button type="button" class="nav-item" role="menuitem" data-m="Barren · 5"><span>Barren</span><span class="list-row__meta">5</span></button>
+       <button type="button" class="nav-item" role="menuitem" data-m="pro"><span>Kern</span><span class="badge-pro">Pro</span></button>
+      </div>
+     </div>
+     <button type="button" class="opt-chip" id="improve" aria-pressed="false" data-tip="Fügt Details und Schattierung hinzu (+1 Credit)"><svg class="icon" style="width:1rem;height:1rem"><use href="#i-wand-sparkles"/></svg>Verbessern <span class="plus">+1</span></button>
+    </div></div></div>
+    <div class="prompt__row">
+     <button type="button" class="icon-btn" id="optBtn" data-tip="Optionen" aria-label="Optionen" aria-expanded="false" aria-controls="opts"><svg class="icon"><use href="#i-settings"/></svg></button>
+     <label class="sr-only" for="ta">Beschreibung</label>
+     <textarea class="prompt__input" id="ta" rows="1" maxlength="500" placeholder="Beschreibe dein Bild …"></textarea>
+     <button class="btn btn--primary btn--pill" id="go" disabled><span id="goLabel">Generieren</span></button>
+    </div>
+   </form>
+  </div>
+ </main>
+</div>
+
+<div class="sr-only" aria-live="polite" id="live"></div>
+<div class="sheet-scrim" id="scrim"></div>
+<section class="sheet" id="sheet" aria-labelledby="st"><div class="sheet__grab" id="grab"><h2 class="sheet__title" id="st">Verlauf</h2></div>
+ <div class="sheet__body"><p class="lead" id="empty">Noch nichts erzeugt.</p><div class="sheet__thumbs" id="thumbs"></div></div></section>
+
+<dialog class="dialog" id="upgrade" aria-labelledby="ut"><div class="dialog__head"><h2 id="ut">Pro freischalten</h2><button class="icon-btn" id="uclose" aria-label="Schließen"><svg class="icon"><use href="#i-x"/></svg></button></div>
+ <p class="lead" style="margin-bottom:var(--space-6)">Pro enthält 300 Credits pro Monat und alle Modelle, auch Kern.</p>
+ <button class="btn btn--primary btn--pill" disabled>Upgrade ist noch nicht verfügbar</button></dialog>
+
+<script>
+/*@inline sheet.js*/
+const $ = s => document.querySelector(s), app = $('#app'), ta = $('#ta'), go = $('#go'), prompt = $('#prompt');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let busy = false, timer = null, art = 1, count = 0;
+const sheet = new Sheet($('#sheet'), { detents: [.5, 1], handle: $('#grab'), scrim: $('#scrim'), behind: app });
+
+/* Landing zu Demo */
+$('#try').onclick = () => { $('#landing').scrollTop = 0; app.dataset.mode = 'demo'; $('#signin').hidden = true; $('#histBtn').hidden = false; setTimeout(() => ta.focus({ preventScroll: true }), 340); };
+$('#histBtn').onclick = () => sheet.open();
+
+/* Prompt */
+const sync = () => { go.disabled = busy || ta.value.trim().length < 3; ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 136) + 'px'; };
+ta.addEventListener('input', () => { sync(); $('#err').hidden = true; });
+ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!go.disabled) prompt.requestSubmit(); } });
+$('#optBtn').onclick = () => { const o = $('#opts'), on = !o.classList.contains('open'); o.classList.toggle('open', on); $('#optBtn').classList.toggle('is-on', on); $('#optBtn').setAttribute('aria-expanded', on); };
+$('#improve').onclick = e => { const b = e.currentTarget; b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'); };
+
+/* Modell-Menü (öffnet nach oben, Pro öffnet den Dialog) */
+const menu = $('#modelMenu'), mbtn = $('#modelBtn');
+const menuOpen = o => { menu.classList.toggle('open', o); mbtn.setAttribute('aria-expanded', o); };
+mbtn.onclick = e => { e.stopPropagation(); menuOpen(!menu.classList.contains('open')); };
+menu.addEventListener('click', e => { const b = e.target.closest('[data-m]'); if (!b) return; menuOpen(false); if (b.dataset.m === 'pro') $('#upgrade').showModal(); else $('#modelName').textContent = b.dataset.m; });
+document.addEventListener('click', e => { if (!menu.contains(e.target)) menuOpen(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') menuOpen(false); });
+$('#uclose').onclick = () => $('#upgrade').close();
+
+/* Generieren: Bild bleibt sichtbar, nur die Ladelinie und die Sekunden zeigen Fortschritt */
+prompt.addEventListener('submit', e => {
+  e.preventDefault(); if (go.disabled) return;
+  busy = true; sync(); prompt.classList.add('is-busy'); $('#err').hidden = true;
+  [...document.querySelectorAll('#optBtn,#modelBtn,#improve')].forEach(b => b.disabled = true); ta.readOnly = true;
+  let s = 0; $('#goLabel').textContent = 'Generiere · 0s'; $('#live').textContent = 'Generierung gestartet.';
+  timer = setInterval(() => { s++; $('#goLabel').textContent = `Generiere · ${s}s`; }, 1000);
+  const fail = /fehler/i.test(ta.value);
+  setTimeout(() => {
+    clearInterval(timer); busy = false; prompt.classList.remove('is-busy'); ta.readOnly = false;
+    [...document.querySelectorAll('#optBtn,#modelBtn,#improve')].forEach(b => b.disabled = false);
+    $('#goLabel').textContent = 'Generieren';
+    if (fail) { $('#errText').textContent = 'Der Generator ist gerade nicht erreichbar.'; $('#err').hidden = false; $('#live').textContent = 'Fehler bei der Generierung.'; }
+    else { art = art === 1 ? 2 : 1; $('#art1').hidden = art !== 1; $('#art2').hidden = art !== 2; addThumb(); $('#live').textContent = 'Bild fertig.'; }
+    sync();
+  }, reduce ? 800 : 3200);
+});
+function addThumb() {
+  $('#empty').hidden = true; const t = document.createElement('button'); t.className = 'thumb anim-rise'; t.setAttribute('aria-label', 'Ergebnis ' + (++count));
+  t.innerHTML = '<svg class="icon"><use href="#i-' + (art === 1 ? 'asterisk' : 'sparkles') + '"/></svg>'; t.onclick = () => sheet.close(); $('#thumbs').prepend(t);
+}
+/* Tastatur auf dem Handy: Panel über die Bildschirmtastatur heben */
+if (window.visualViewport) { const f = () => { const kb = Math.max(0, innerHeight - visualViewport.height - visualViewport.offsetTop); document.documentElement.style.setProperty('--kb', kb); }; visualViewport.addEventListener('resize', f); visualViewport.addEventListener('scroll', f); }
+sync();
+</script>
+</body>
+</html>

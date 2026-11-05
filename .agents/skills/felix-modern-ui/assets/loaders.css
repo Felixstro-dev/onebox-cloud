@@ -1,0 +1,91 @@
+/* Felix Modern UI: Loader und Preloader. Alles in currentColor oder Tokens, ohne Bibliothek.
+   Regeln: Loader erscheinen erst nach ~200 ms (sonst flackern sie), bleiben mindestens ~400 ms, haben einen Text für Screenreader
+   (role="status") und stehen bei reduzierter Bewegung still. Schleifen sind hier ausdrücklich erlaubt, weil sie Warten anzeigen. */
+
+.loader-text { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+
+/* 1. Ring: für Buttons und kleine Bereiche */
+.spinner { display: inline-block; width: 1.25em; height: 1.25em; border: 2px solid color-mix(in srgb, currentColor 22%, transparent); border-top-color: currentColor; border-radius: var(--radius-pill); animation: spin .8s linear infinite; }
+.spinner--lg { width: 2rem; height: 2rem; border-width: 3px; }
+
+/* 2. Equalizer-Balken */
+.loader-bars { display: inline-flex; align-items: center; gap: .1875rem; height: 1.25rem; }
+.loader-bars i { width: .1875rem; height: 100%; border-radius: var(--radius-pill); background: currentColor; transform-origin: center; animation: bars 1s ease-in-out infinite; }
+.loader-bars i:nth-child(2) { animation-delay: .12s; } .loader-bars i:nth-child(3) { animation-delay: .24s; } .loader-bars i:nth-child(4) { animation-delay: .36s; }
+
+/* 3. Stern: drehender Lucide-Stern (wie „Denke nach“ in der Claude-App). Das Icon bekommt die Klasse. */
+.loader-star { color: var(--color-accent-brand); animation: star 2.4s var(--ease-in-out) infinite; }
+
+/* 4. Pulsring: Radar-Puls hinter einem Punkt */
+.loader-ping { position: relative; display: inline-block; width: .75rem; height: .75rem; border-radius: var(--radius-pill); background: var(--color-accent-brand); }
+.loader-ping::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: inherit; animation: ping 1.6s var(--ease-out) infinite; }
+
+/* 5. Text-Schimmer: „Denke nach …“ */
+.shimmer-text { color: transparent; background: linear-gradient(100deg, transparent 35%, var(--color-text-primary) 50%, transparent 65%) 120% 0 / 250% 100% no-repeat, var(--color-text-secondary); -webkit-background-clip: text; background-clip: text; animation: shimmer-text 2s linear infinite; }
+
+/* 6. Skeleton: Platzhalter in Zielgröße. .skeleton pulsiert (motion.css), .skeleton--shimmer streift ein Licht darüber. */
+.skeleton--shimmer { position: relative; overflow: hidden; animation: none; opacity: 1; background: var(--color-bg-elevated); }
+.skeleton--shimmer::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-text-primary) 8%, transparent), transparent); animation: sweep-x 1.6s ease-in-out infinite; }
+.skeleton--line { height: .75rem; border-radius: var(--radius-pill); }
+.skeleton--title { height: 1.5rem; width: 55%; border-radius: var(--radius-sm); }
+.skeleton--avatar { width: 2.5rem; height: 2.5rem; border-radius: var(--radius-pill); }
+.skeleton--block { aspect-ratio: 16/9; border-radius: var(--radius-lg); }
+.skeleton-card { display: grid; gap: var(--space-3); }
+/* Echter Inhalt blendet nach dem Laden ein (Container bekommt .loaded) */
+.content-swap > [data-real] { display: none; }
+.content-swap.loaded > [data-real] { display: block; animation: rise var(--duration-slow) var(--ease-out) both; }
+.content-swap.loaded > [data-skel] { display: none; }
+
+/* 7. Fortschritt: bekannt (--p 0 bis 1), unbestimmt, und globale Linie am Seitenrand */
+.progress { position: relative; height: .25rem; overflow: hidden; border-radius: var(--radius-pill); background: var(--color-bg-active); }
+.progress > i { position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--p, 0)); background: var(--color-button-primary); border-radius: inherit; transition: transform var(--duration-base) var(--ease-out); }
+.progress--indeterminate > i { width: 40%; transform: none; animation: slide-x 1.4s var(--ease-in-out) infinite; }
+.topbar-progress { position: fixed; left: 0; right: 0; top: 0; z-index: var(--z-tooltip); height: 2px; pointer-events: none; opacity: 0; transition: opacity var(--duration-base) var(--ease-out); }
+.topbar-progress > i { display: block; height: 100%; transform-origin: left; transform: scaleX(var(--p, 0)); background: var(--color-accent-brand); transition: transform var(--duration-base) var(--ease-out); }
+.topbar-progress.on { opacity: 1; }
+
+/* 8. Button-Ladezustand: Breite bleibt gleich, Text bleibt sichtbar, Ring links */
+.btn[aria-busy="true"] { pointer-events: none; opacity: .85; }
+.btn[aria-busy="true"]::before { content: ""; width: 1em; height: 1em; border: 2px solid color-mix(in srgb, currentColor 25%, transparent); border-top-color: currentColor; border-radius: var(--radius-pill); animation: spin .8s linear infinite; }
+.btn[aria-busy="true"] > .icon { display: none; }
+
+/* 9. Schritt-Loader: „Analysiere → Plane → Schreibe“ */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.steps li { display: flex; align-items: center; gap: var(--space-3); color: var(--color-text-secondary); transition: color var(--duration-base) var(--ease-out); }
+.steps li::before { content: ""; width: 1.125rem; height: 1.125rem; flex: none; border-radius: var(--radius-pill); border: 2px solid var(--color-border-default); transition: background var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out); }
+.steps li[data-state="active"] { color: var(--color-text-primary); }
+.steps li[data-state="active"]::before { border-color: color-mix(in srgb, var(--color-text-primary) 25%, transparent); border-top-color: var(--color-text-primary); animation: spin .8s linear infinite; }
+.steps li[data-state="done"]::before { background: var(--color-success) center / .7rem no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E"); border-color: var(--color-success); animation: pop var(--duration-fast) var(--ease-out); }
+
+/* 10. Bild-Platzhalter: unscharf, dann scharf (Klasse .ready per JS bei load) */
+.blur-up { filter: blur(14px); transform: scale(1.04); transition: filter var(--duration-slow) var(--ease-out), transform var(--duration-slow) var(--ease-out); }
+.blur-up.ready { filter: none; transform: none; }
+
+/* 11. PRELOADER: Vollbild, Logo zeichnet sich, Zähler zeigt echten Fortschritt, Ausgang als Vorhang nach oben oder Fade.
+   Ohne JavaScript bleibt er unsichtbar, die Seite ist sofort lesbar. */
+.preloader { display: none; }
+.js .preloader { position: fixed; inset: 0; z-index: calc(var(--z-tooltip) + 10); display: grid; place-items: center; background: var(--color-bg-deep); color: var(--color-text-primary);
+  transition: transform var(--duration-sheet) var(--ease-sheet), opacity var(--duration-slow) var(--ease-out); }
+.preloader__inner { display: grid; gap: var(--space-6); justify-items: center; transition: opacity var(--duration-base) var(--ease-out), transform var(--duration-base) var(--ease-out); }
+.preloader__logo { width: 4rem; height: 4rem; fill: none; stroke: var(--color-accent-brand); stroke-width: 1.5; stroke-linecap: round; }
+.preloader__logo path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw var(--duration-draw) var(--ease-out) forwards; }
+.preloader__logo path:nth-child(2) { animation-delay: .15s; } .preloader__logo path:nth-child(3) { animation-delay: .3s; }
+.preloader__count { font: 500 var(--text-sm)/1 var(--font-mono); letter-spacing: .08em; color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
+.preloader__bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--color-border-subtle); }
+.preloader__bar > i { display: block; height: 100%; transform-origin: left; transform: scaleX(var(--p, 0)); background: var(--color-accent-brand); }
+.js .preloader.is-done { transform: translateY(-100%); }
+.preloader.is-done .preloader__inner { opacity: 0; transform: translateY(-1rem); }
+.js .preloader[data-exit="fade"].is-done { transform: none; opacity: 0; }
+.preloader[hidden] { display: none !important; }
+html.is-loading { overflow: hidden; }
+/* Eintritts-Animationen warten, bis der Preloader weg ist */
+html.is-loading .anim-rise, html.is-loading [class*="fx-"], html.is-loading .reveal { animation-play-state: paused; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes bars { 0%, 100% { transform: scaleY(.3); } 50% { transform: scaleY(1); } }
+@keyframes star { 0% { transform: rotate(0) scale(.9); } 50% { transform: rotate(180deg) scale(1.08); } 100% { transform: rotate(360deg) scale(.9); } }
+@keyframes ping { 0% { transform: scale(1); opacity: .6; } 100% { transform: scale(3); opacity: 0; } }
+@keyframes shimmer-text { to { background-position: -20% 0; } }
+@keyframes sweep-x { to { transform: translateX(100%); } }
+@keyframes slide-x { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+@keyframes draw { to { stroke-dashoffset: 0; } }

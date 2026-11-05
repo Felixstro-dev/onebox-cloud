@@ -1,0 +1,54 @@
+/* Felix Modern UI: Upload-Fenster (unten rechts). Nutzt nur Tokens, keine Abhängigkeit zu components.css.
+   Aufbau und Verhalten: upload-panel.js. Zustände pro Datei als data-state am <li>: queued, active, done, error, canceled. */
+
+.up { position: fixed; right: var(--space-6); bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px)); z-index: calc(var(--z-sheet) + 1);
+  width: min(24rem, calc(100vw - 2rem)); border-radius: var(--radius-lg); background: var(--color-bg-sidebar); border: 1px solid var(--color-border-default); box-shadow: var(--shadow-panel); color: var(--color-text-primary);
+  opacity: 0; transform: translateY(1rem) scale(.98); visibility: hidden; transform-origin: bottom right;
+  transition: opacity var(--duration-base) var(--ease-out), transform var(--duration-sheet) var(--ease-sheet), visibility 0s var(--duration-sheet); }
+.up.is-open { opacity: 1; transform: none; visibility: visible; transition-delay: 0s; }
+@media (max-width: 639px) { .up { right: .75rem; left: .75rem; width: auto; bottom: calc(.75rem + env(safe-area-inset-bottom, 0px)); } }
+
+.up__head { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); }
+.up__icon { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: var(--radius-sm); background: var(--color-bg-active); color: var(--color-text-primary); }
+.up__title { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); line-height: 1.25; }
+.up__sub { margin: .125rem 0 0; font-size: var(--text-xs); color: var(--color-text-secondary); line-height: 1.3; font-variant-numeric: tabular-nums; }
+.up__sub b { font-weight: var(--weight-medium); color: var(--color-text-primary); }
+.up__actions { display: flex; gap: var(--space-1); }
+.up__btn { display: grid; place-items: center; width: var(--size-icon-btn); height: var(--size-icon-btn); padding: 0; border: 0; background: transparent; color: var(--color-text-secondary); border-radius: .625rem; cursor: pointer; transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), transform var(--duration-base) var(--ease-out); }
+.up__btn:hover { background: var(--color-bg-elevated); color: var(--color-text-primary); }
+.up__btn[aria-expanded="false"] .up-chev { transform: rotate(180deg); }
+.up__btn.is-confirm { width: auto; padding: 0 var(--space-3); font-size: var(--text-xs); color: var(--color-error); }
+.up-chev { transition: transform var(--duration-base) var(--ease-out); }
+
+.up__bar { position: relative; height: .25rem; margin: 0 var(--space-4); overflow: hidden; border-radius: var(--radius-pill); background: var(--color-bg-active); }
+.up__bar > i { position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--p, 0)); background: var(--color-button-primary); border-radius: inherit; transition: transform var(--duration-base) var(--ease-out), background var(--duration-base) var(--ease-out); }
+.up[data-state="done"] .up__bar > i { background: var(--color-success); }
+.up[data-state="error"] .up__bar > i { background: var(--color-error); }
+
+.up__list-wrap { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--duration-slow) var(--ease-out); }
+.up.is-collapsed .up__list-wrap { grid-template-rows: 0fr; }
+.up__list-wrap > div { min-height: 0; overflow: hidden; }
+.up__list { list-style: none; margin: 0; padding: var(--space-3) var(--space-2) var(--space-2); max-height: 15rem; overflow: auto; overscroll-behavior: contain; display: grid; gap: .125rem; }
+.up__item { display: grid; grid-template-columns: 1.125rem 1fr auto; gap: var(--space-3); align-items: start; padding: var(--space-2) var(--space-2); border-radius: var(--radius-sm); animation: rise var(--duration-slow) var(--ease-out) both; }
+.up__name { font-size: var(--text-sm); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.up__meta { display: block; margin-top: .125rem; font-size: var(--text-xs); line-height: 1.3; color: var(--color-text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.up__side { font-size: var(--text-xs); color: var(--color-text-secondary); font-variant-numeric: tabular-nums; text-align: right; line-height: 1.8; white-space: nowrap; }
+.up__item[data-state="active"] .up__side { color: var(--color-text-primary); }
+.up__item[data-state="error"] .up__meta { color: var(--color-error); white-space: normal; }
+.up__retry { border: 0; background: none; padding: 0; color: var(--color-text-primary); font: inherit; text-decoration: underline; text-underline-offset: .2em; cursor: pointer; }
+
+/* Marker wie bei .steps: leerer Ring, drehender Ring, Haken, Fehler */
+.up__mark { width: 1.125rem; height: 1.125rem; margin-top: .125rem; border-radius: var(--radius-pill); border: 2px solid var(--color-border-default); flex: none; transition: background var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out); }
+.up__item[data-state="active"] .up__mark { border-color: color-mix(in srgb, var(--color-text-primary) 25%, transparent); border-top-color: var(--color-text-primary); animation: spin .8s linear infinite; }
+.up__item[data-state="done"] .up__mark { background: var(--color-success) center / .7rem no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E"); border-color: var(--color-success); animation: pop var(--duration-fast) var(--ease-out); }
+.up__item[data-state="error"] .up__mark { background: var(--color-error) center / .7rem no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round'%3E%3Cpath d='M18 6 6 18M6 6l12 12'/%3E%3C/svg%3E"); border-color: var(--color-error); }
+.up__item[data-state="canceled"] .up__mark { border-style: dashed; }
+.up__item[data-state="queued"] .up__name, .up__item[data-state="canceled"] .up__name { color: var(--color-text-secondary); }
+
+/* Dünne Linie unter dem Namen der aktiven Datei */
+.up__file-bar { display: none; height: 2px; margin-top: .375rem; border-radius: var(--radius-pill); background: var(--color-bg-active); overflow: hidden; }
+.up__item[data-state="active"] .up__file-bar { display: block; }
+.up__file-bar > i { display: block; height: 100%; transform-origin: left; transform: scaleX(var(--p, 0)); background: var(--color-text-secondary); transition: transform var(--duration-base) var(--ease-out); }
+
+.up__live { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.up .shimmer-text { display: inline; }

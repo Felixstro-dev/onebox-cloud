@@ -1,0 +1,65 @@
+/* Felix Modern UI: Effekte und Eintritts-Animationen. Opacity und transform zuerst, Blur und clip-path nur sparsam (Hero, Überschriften).
+   Alles ist über Tokens getaktet. Wiederholbar: Klasse entfernen, Reflow, Klasse setzen (siehe effects.js: replay()). */
+
+/* Eintritt */
+.fx-fade-up   { animation: rise var(--duration-slow) var(--ease-out) both; animation-delay: calc(var(--i, 0) * 70ms); }
+.fx-scale-in  { animation: scale-in var(--duration-slow) var(--ease-out) both; animation-delay: calc(var(--i, 0) * 70ms); }
+.fx-blur-in   { animation: blur-in var(--duration-sheet) var(--ease-out) both; animation-delay: calc(var(--i, 0) * 70ms); }
+.fx-clip-up   { animation: clip-up var(--duration-sheet) var(--ease-sheet) both; animation-delay: calc(var(--i, 0) * 90ms); }
+.fx-from-left { animation: from-left var(--duration-slow) var(--ease-out) both; animation-delay: calc(var(--i, 0) * 70ms); }
+.fx-from-right{ animation: from-right var(--duration-slow) var(--ease-out) both; animation-delay: calc(var(--i, 0) * 70ms); }
+
+/* Text-Maske: jede Zeile oder jedes Wort steigt aus einer Maske auf (effects.js: splitWords) */
+.mask { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: .12em; margin-bottom: -.12em; }
+.mask > span { display: inline-block; transform: translateY(110%); }
+.split-in .mask > span { animation: mask-up var(--duration-sheet) var(--ease-sheet) both; animation-delay: calc(var(--i, 0) * 45ms); }
+.js .split:not(.split-in) .mask > span { transform: translateY(110%); }
+
+/* Hover */
+.hover-lift { transition: transform var(--duration-base) var(--ease-out), background var(--duration-base) var(--ease-out); }
+.hover-lift:hover { transform: translateY(-3px); background: var(--color-bg-elevated); }
+.link-grow { position: relative; text-decoration: none; }
+.link-grow::after { content: ""; position: absolute; left: 0; right: 0; bottom: -.15em; height: 1px; background: currentColor; transform: scaleX(0); transform-origin: right; transition: transform var(--duration-base) var(--ease-out); }
+.link-grow:hover::after, .link-grow:focus-visible::after { transform: scaleX(1); transform-origin: left; }
+.hover-arrow .icon { transition: transform var(--duration-base) var(--ease-out); }
+.hover-arrow:hover .icon { transform: translateX(.25rem); }
+
+/* Marquee: Endlosband (Logos, Schlagworte). Inhalt zweimal einsetzen. Pausiert bei Hover und Fokus, steht bei reduzierter Bewegung still. */
+.marquee { display: flex; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent); mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent); }
+.marquee__track { display: flex; flex: none; gap: var(--space-8); padding-right: var(--space-8); animation: marquee 28s linear infinite; }
+.marquee:hover .marquee__track, .marquee:focus-within .marquee__track { animation-play-state: paused; }
+
+/* Zahlen zählen hoch, rein in CSS (@property): <span class="ticker" style="--to:128"></span> */
+@property --n { syntax: "<integer>"; inherits: false; initial-value: 0; }
+.ticker { animation: tick var(--duration-count) var(--ease-out) both; counter-reset: n var(--n); font-variant-numeric: tabular-nums; }
+.ticker::after { content: counter(n); }
+
+/* Schalter mit Feder */
+.switch { position: relative; display: inline-block; width: 2.75rem; height: 1.625rem; flex: none; }
+.switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
+.switch span { position: absolute; inset: 0; border-radius: var(--radius-pill); background: var(--color-bg-active); transition: background var(--duration-base) var(--ease-out); }
+.switch span::after { content: ""; position: absolute; top: .1875rem; left: .1875rem; width: 1.25rem; height: 1.25rem; border-radius: var(--radius-pill); background: var(--color-text-primary); transition: transform var(--duration-spring) var(--ease-spring); }
+.switch input:checked + span { background: var(--color-success); }
+.switch input:checked + span::after { transform: translateX(1.125rem); background: var(--color-text-on-primary); }
+.switch input:focus-visible + span { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+
+/* Scroll-gekoppelt (Progressive Enhancement: nur wo animation-timeline existiert, sonst unsichtbar bzw. normal sichtbar) */
+@supports (animation-timeline: scroll()) {
+  .scroll-progress { position: fixed; left: 0; right: 0; top: 0; z-index: var(--z-tooltip); height: 2px; background: var(--color-accent-brand); transform-origin: left; transform: scaleX(0); animation: grow-x linear both; animation-timeline: scroll(root); }
+  .view-reveal { animation: rise linear both; animation-timeline: view(); animation-range: entry 0% cover 28%; }
+}
+
+/* Ansichtswechsel (View Transitions): Standardüberblendung ruhig halten; Kreis-Reveal beim Theme-Wechsel (effects.js: themeSwitch) */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--duration-slow); animation-timing-function: var(--ease-out); }
+html.theme-reveal::view-transition-old(root) { animation: none; z-index: 1; }
+html.theme-reveal::view-transition-new(root) { animation: none; z-index: 2; clip-path: circle(0 at var(--tx, 50%) var(--ty, 0)); }
+
+@keyframes scale-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes blur-in { from { opacity: 0; filter: blur(10px); transform: translateY(6px); } to { opacity: 1; filter: none; transform: none; } }
+@keyframes clip-up { from { clip-path: inset(100% 0 0 0); transform: translateY(12px); } to { clip-path: inset(0); transform: none; } }
+@keyframes from-left { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: none; } }
+@keyframes from-right { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+@keyframes mask-up { from { transform: translateY(110%); } to { transform: none; } }
+@keyframes marquee { to { transform: translateX(-100%); } }
+@keyframes tick { from { --n: 0; } to { --n: var(--to, 100); } }
+@keyframes grow-x { to { transform: scaleX(1); } }
