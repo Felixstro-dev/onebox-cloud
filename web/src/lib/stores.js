@@ -8,6 +8,7 @@ export const refreshKey = writable(0);
 export const uploadsOpen = writable(false);
 
 let toastId = 0;
+let lastToast = null;
 const MAX_TOASTS = 7;
 
 /**
@@ -16,7 +17,11 @@ const MAX_TOASTS = 7;
  */
 export function notify(message, kind = 'info', timeout = 4200, action = null) {
   const id = ++toastId;
+  const now = Date.now();
+  const key = `${kind}:${message}`;
   toasts.update((items) => {
+    if (lastToast?.key === key && now - lastToast.at < 100) return items;
+    lastToast = { key, at: now };
     const next = [...items, { id, message, kind, action }];
     if (next.length > MAX_TOASTS) next.shift();
     return next;

@@ -1,3 +1,5 @@
+import { notify } from './stores.js';
+
 export class ApiError extends Error {
   constructor(status, code, message, details) {
     super(message);
@@ -29,7 +31,9 @@ export async function api(method, path, body = undefined, { access = null, raw =
     if (response.status === 503 && data?.error?.code === 'maintenance' && !window.location.pathname.startsWith('/maintenance')) {
       window.location.assign('/maintenance');
     }
-    throw new ApiError(response.status, data?.error?.code || 'error', data?.error?.message || response.statusText, data?.error?.details);
+    const message = data?.error?.message || response.statusText || 'Die Anfrage ist fehlgeschlagen.';
+    notify(message, 'error');
+    throw new ApiError(response.status, data?.error?.code || 'error', message, data?.error?.details);
   }
   return data;
 }

@@ -59,12 +59,18 @@
   onMount(() => {
     startRouter();
     bootstrap();
+    const reportUnexpectedError = (event) => {
+      const message = event?.reason?.message || event?.error?.message;
+      notify(message || 'Ein unerwarteter Fehler ist aufgetreten. Bitte versuche es erneut.', 'error');
+    };
     const unauthorized = () => {
       user.set(null);
       boot = 'guest';
       if (!$route.name.startsWith('public')) navigate('/login', { replace: true });
     };
     window.addEventListener('onebox:unauthorized', unauthorized);
+    window.addEventListener('error', reportUnexpectedError);
+    window.addEventListener('unhandledrejection', reportUnexpectedError);
     const onKey = (event) => {
       const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target?.tagName) || event.target?.isContentEditable;
       if (event.key === 'k' && (event.metaKey || event.ctrlKey)) {
@@ -82,6 +88,8 @@
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('onebox:unauthorized', unauthorized);
+      window.removeEventListener('error', reportUnexpectedError);
+      window.removeEventListener('unhandledrejection', reportUnexpectedError);
       window.removeEventListener('keydown', onKey);
     };
   });
