@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import SelectionBar from './SelectionBar.svelte';
   import UploadPanel from './UploadPanel.svelte';
-  import ToastHost from './ToastHost.svelte';
   import { startJobsPolling, stopJobsPolling } from '../lib/jobs.js';
 
   let inner = null;
@@ -32,6 +31,5 @@
   <div class="bottom-stack" bind:this={inner}>
     <SelectionBar />
     <UploadPanel />
-    <ToastHost />
   </div>
 </div>

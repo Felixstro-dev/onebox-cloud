@@ -47,6 +47,14 @@ test('Ersteinrichtung validiert Eingaben, erstellt eine Session und bleibt abges
   assert.match(first.headers['set-cookie'], /onebox_session=/);
   assert.equal(first.json().user.role, 'admin');
 
+  const login = await app.inject({
+    method: 'POST', url: '/api/v1/auth/login',
+    payload: { username: 'admin', password: 'correct horse battery' },
+    headers: { 'x-onebox-csrf': '1' },
+  });
+  assert.equal(login.statusCode, 200);
+  assert.equal(login.json().user.username, 'admin');
+
   const duplicate = await app.inject({
     method: 'POST', url: '/api/v1/system/setup',
     payload: { username: 'second', password: 'another correct password' },

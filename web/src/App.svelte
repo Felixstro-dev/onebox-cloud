@@ -8,6 +8,7 @@
   import IconButton from './components/IconButton.svelte';
   import BottomLayer from './components/BottomLayer.svelte';
   import ConfirmHost from './components/ConfirmHost.svelte';
+  import ToastHost from './components/ToastHost.svelte';
   import UpdateNotice from './components/UpdateNotice.svelte';
   import Login from './views/Login.svelte';
   import Setup from './views/Setup.svelte';
@@ -161,6 +162,12 @@
 
   $: if (boot === 'ready' && ['login', 'setup'].includes($route.name)) navigate('/', { replace: true });
 </script>
+
+<div class="bottom-layer" aria-live="polite">
+  <div class="bottom-stack">
+    <ToastHost />
+  </div>
+</div>
 
 {#if isPublic}
   {#if $route.name === 'public-share'}
