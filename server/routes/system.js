@@ -7,7 +7,7 @@ import { badRequest } from '../lib/errors.js';
 import { db, schema, runMigrations } from '../db/index.js';
 import { desc, eq, sql } from 'drizzle-orm';
 import { usedBytes } from '../services/nodes.js';
-import { getMessages, addMessage } from '../../addons/chat/api/chat.js';
+import { getMessages, addMessage } from '../addons/chat/api/chat.js';
 import {
   checkForUpdate, clearMaintenance, maintenancePage, maintenanceState, startMaintenance, triggerUpdater,
 } from '../services/updates.js';

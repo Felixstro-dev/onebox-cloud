@@ -37,6 +37,8 @@
     : (localStorage.getItem('onebox-view') === 'grid' ? 'grid' : 'list');
   let sort = SORT_FIELDS.includes(initialQuery.get('sort')) ? initialQuery.get('sort') : 'name';
   let dir = initialQuery.get('dir') === 'desc' ? 'desc' : 'asc';
+  let searchQuery = initialQuery.get('q') || '';
+  let searchTimer = null;
   let selected = new Set();
   let anchorId = null;
   let focusedId = null;
@@ -159,10 +161,13 @@
       const nextView = query.get('view') === 'grid' ? 'grid' : 'list';
       const nextSort = SORT_FIELDS.includes(query.get('sort')) ? query.get('sort') : 'name';
       const nextDir = query.get('dir') === 'desc' ? 'desc' : 'asc';
-      if (nextView !== view || nextSort !== sort || nextDir !== dir) {
+      const nextSearch = query.get('q') || '';
+      if (nextView !== view || nextSort !== sort || nextDir !== dir || nextSearch !== searchQuery) {
         view = nextView;
         sort = nextSort;
         dir = nextDir;
+        searchQuery = nextSearch;
+        load();
       }
     };
     window.addEventListener('click', closeMenu);
@@ -173,6 +178,7 @@
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('popstate', onPop);
       clearTimeout(pressTimer);
+      clearTimeout(searchTimer);
       stopTransfer();
     };
   });
@@ -190,7 +196,15 @@
     else url.searchParams.set('sort', sort);
     if (dir === 'asc') url.searchParams.delete('dir');
     else url.searchParams.set('dir', dir);
+    if (searchQuery.trim()) url.searchParams.set('q', searchQuery.trim());
+    else url.searchParams.delete('q');
     history.replaceState(history.state, '', url);
+  }
+
+  function onSearchInput() {
+    clearTimeout(searchTimer);
+    syncUrl();
+    searchTimer = setTimeout(() => load(), 220);
   }
 
   function onGlobalKey(event) {
@@ -283,7 +297,7 @@
 
   function onItemClick(event, item, index) {
     if (suppressClick) { suppressClick = false; return; }
-    if (event.target?.closest?.('input[type="checkbox"]')) return;
+    if (event.target?.closest?.('input[type="checkbox"], .file-row__check, .file-tile__check')) return;
     if (event.shiftKey) { selectRange(index); return; }
     if (event.ctrlKey || event.metaKey) {
       anchorId = item.id;
@@ -310,7 +324,7 @@
   }
 
   function buildFilter() {
-    return { parentId: folderId || null, q: null, kind: null, sort, dir };
+    return { parentId: folderId || null, q: searchQuery.trim() || null, kind: null, sort, dir };
   }
 
   function selectionBody() {
@@ -344,7 +358,8 @@
     failed = '';
     resetSelection();
     try {
-      const data = await get(`/api/v1/files?parent=${folderId || 'root'}&sort=${sort}&dir=${dir}&limit=100`);
+      const query = encodeURIComponent(searchQuery.trim());
+      const data = await get(`/api/v1/files?parent=${folderId || 'root'}&q=${query}&sort=${sort}&dir=${dir}&limit=100`);
       items = data.items;
       total = Number(data.total) || items.length;
       breadcrumbs = data.breadcrumbs || [];
@@ -368,7 +383,8 @@
     if (loadingMore || !nextCursor) return;
     loadingMore = true;
     try {
-      const data = await get(`/api/v1/files?parent=${folderId || 'root'}&sort=${sort}&dir=${dir}&limit=100&cursor=${encodeURIComponent(nextCursor)}`);
+      const query = encodeURIComponent(searchQuery.trim());
+      const data = await get(`/api/v1/files?parent=${folderId || 'root'}&q=${query}&sort=${sort}&dir=${dir}&limit=100&cursor=${encodeURIComponent(nextCursor)}`);
       if (Array.isArray(data.items) && data.items.length) items = [...items, ...data.items];
       if (data.total !== undefined) total = Number(data.total) || total;
       nextCursor = data.next || null;
@@ -1122,6 +1138,11 @@
   <input class="sr-only" type="file" multiple webkitdirectory directory bind:this={folderUploadInput} on:change={onFolderUploads} />
 
   <div class="files-toolbar">
+    <div style="display:flex;align-items:center;gap:var(--space-2);min-width:min(18rem,100%)">
+      <Icon name="search" size={17} />
+      <label class="sr-only" for="files-search">Dateien durchsuchen</label>
+      <input id="files-search" class="input" type="search" placeholder="Dateien durchsuchen …" autocomplete="off" bind:value={searchQuery} on:input={onSearchInput} />
+    </div>
     <select class="select" style="width:auto;min-height:2.25rem;font-size:var(--text-sm)" value={sort} on:change={(event) => changeSort(event.target.value)} aria-label="Sortieren nach">
       <option value="name">Name</option>
       <option value="updatedAt">Geändert</option>

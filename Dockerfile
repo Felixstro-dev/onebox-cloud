@@ -45,7 +45,7 @@ ENV NODE_ENV=production \
 
 # Die Version wird beim Bauen aus dem Git-Tag gesetzt und für die
 # Update-Prüfung verwendet. Ein gesetztes ENV überschreibt den Wert.
-ARG ONEB_VERSION=0.2.2
+ARG ONEB_VERSION=0.2.3
 ENV ONEB_VERSION=${ONEB_VERSION}
 
 COPY --from=build --chown=node:node /app/package.json ./package.json

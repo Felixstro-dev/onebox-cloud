@@ -34,3 +34,14 @@ test('Dateiliste nutzt Browser-Virtualisierung und lädt seitenweise', () => {
   assert.match(files, /limit=100/);
   assert.match(files, /nextCursor/);
 });
+
+test('Checkbox-Labels bewahren die Mehrfachauswahl', () => {
+  assert.match(files, /closest\?\.\('\input\[type="checkbox"\], \.file-row__check, \.file-tile__check'\)/);
+});
+
+test('Dateiliste bietet serverseitige Suche mit URL-Filter', () => {
+  assert.match(files, /id="files-search"/);
+  assert.match(files, /bind:value=\{searchQuery\}/);
+  assert.match(files, /q=\$\{query\}/);
+  assert.match(files, /url\.searchParams\.set\('q', searchQuery\.trim\(\)\)/);
+});

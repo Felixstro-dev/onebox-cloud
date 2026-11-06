@@ -7,7 +7,7 @@ export function parse(pathname = window.location.pathname) {
   if (parts[0] === 'u') return { name: 'upload-request', token: parts[1], path: pathname };
   if (parts[0] === 'files') return parts[1] === 'trash' ? { name: 'trash', path: pathname } : { name: 'files', folderId: parts[1] || null, path: pathname };
   if (parts[0] === 'doc') return { name: 'doc', docId: parts[1] || null, path: pathname };
-  if (['shared', 'photos', 'backups', 'storage', 'users', 'settings', 'login', 'setup'].includes(parts[0])) return { name: parts[0], path: pathname };
+  if (['shared', 'photos', 'chat', 'backups', 'storage', 'users', 'settings', 'login', 'setup'].includes(parts[0])) return { name: parts[0], path: pathname };
   return { name: 'not-found', path: pathname };
 }
 

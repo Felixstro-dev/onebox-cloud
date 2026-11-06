@@ -285,4 +285,40 @@ test('Sicherheit: Pfade, CSRF, Header, Rate-Limit und 2FA', async (t) => {
     const after = await get('/api/v1/auth/sessions');
     assert.ok(!after.json().items.some((session) => session.id === other.id));
   });
+
+  await t.test('erlaubt Mitgliedern das Ändern des eigenen Passworts', async () => {
+    const memberId = id();
+    db.insert(schema.users).values({
+      id: memberId,
+      username: 'member-password',
+      displayName: 'Member',
+      passwordHash: await hashPassword('member-password-old'),
+      role: 'user',
+      quotaBytes: 0,
+      createdAt: Date.now(),
+    }).run();
+    const login = await app.inject({
+      method: 'POST', url: '/api/v1/auth/login',
+      payload: { username: 'member-password', password: 'member-password-old' },
+      headers: { 'x-onebox-csrf': '1' },
+    });
+    assert.equal(login.statusCode, 200, login.payload);
+    const memberCookie = login.headers['set-cookie'].split(';')[0];
+    const changed = await app.inject({
+      method: 'POST', url: '/api/v1/auth/password',
+      payload: { currentPassword: 'member-password-old', newPassword: 'member-password-new' },
+      headers: { cookie: memberCookie, 'x-onebox-csrf': '1' },
+    });
+    assert.equal(changed.statusCode, 200, changed.payload);
+    assert.equal(changed.json().signedOut, true);
+  });
+
+  await t.test('lädt und sendet Chat-Nachrichten', async () => {
+    const sent = await post('/api/v1/chat/messages', { text: 'Hallo Onebox' });
+    assert.equal(sent.statusCode, 200, sent.payload);
+    assert.equal(sent.json().message.text, 'Hallo Onebox');
+    const listed = await get('/api/v1/chat/messages');
+    assert.equal(listed.statusCode, 200, listed.payload);
+    assert.ok(listed.json().messages.some((message) => message.text === 'Hallo Onebox'));
+  });
 });

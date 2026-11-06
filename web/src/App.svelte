@@ -17,6 +17,7 @@
   import Document from './views/Document.svelte';
   import Trash from './views/Trash.svelte';
   import Shared from './views/Shared.svelte';
+  import Chat from './views/Chat.svelte';
   import Photos from './views/Photos.svelte';
   import Backups from './views/Backups.svelte';
   import Storage from './views/Storage.svelte';
@@ -286,6 +287,8 @@
           <Trash />
         {:else if active === 'shared'}
           <Shared />
+        {:else if active === 'chat'}
+          <Chat />
         {:else if active === 'photos'}
           <Photos />
         {:else if active === 'backups'}

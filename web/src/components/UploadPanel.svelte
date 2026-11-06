@@ -1,9 +1,8 @@
 <script>
   import { onMount } from 'svelte';
-  import { slide, fade } from 'svelte/transition';
+  import { slide } from 'svelte/transition';
   import { queue, pause, resume, retry, remove, clearFinished, totalProgress, attachFile, restoreQueue, resolveConflict } from '../lib/uploads.js';
   import { jobs, dismissJob } from '../lib/jobs.js';
-  import { uploadsOpen } from '../lib/stores.js';
   import { bytes } from '../lib/format.js';
   import Icon from './Icon.svelte';
   import IconButton from './IconButton.svelte';
@@ -15,9 +14,7 @@
   let pendingItem = null;
   let conflictChoice = 'keepBoth';
   let conflictAll = false;
-  let clock = Date.now();
   const MAX_VISIBLE_ITEMS = 20;
-  const SETTLE_MS = 2000;
   const labels = {
     queued: 'Wartet', uploading: 'Lädt hoch', paused: 'Pausiert', done: 'Fertig',
     error: 'Fehlgeschlagen', canceled: 'Abgebrochen', 'needs-file': 'Datei erneut wählen',
@@ -28,35 +25,17 @@
   $: visibleItems = $queue.slice(0, MAX_VISIBLE_ITEMS);
   $: progress = totalProgress(items);
   $: active = items.filter((item) => !['done', 'canceled'].includes(item.status));
-  $: recentDone = items.filter((item) => item.status === 'done' && item.finishedAt && clock - item.finishedAt < SETTLE_MS);
   $: conflictItem = items.find((item) => item.status === 'conflict') || null;
   $: jobItems = $jobs;
   $: runningJobs = jobItems.filter((job) => job.status === 'running' || job.status === 'queued');
   $: openCount = active.length + runningJobs.length;
 
-  // Das Feld existiert nur, solange es Uploads oder Jobs gibt.
-  $: hasUploads = active.length > 0 || recentDone.length > 0;
+  // Der Loader bleibt offen, bis die Einträge bewusst entfernt werden.
+  $: hasUploads = items.some((item) => item.status !== 'canceled');
   $: hasContent = hasUploads || jobItems.length > 0;
-
-  // Neue Aktivität öffnet das Feld. Ein manuelles Schließen bleibt bestehen,
-  // bis tatsächlich ein weiterer Job dazukommt.
-  let knownActive = new Set();
-  $: activeIds = [
-    ...active.map((item) => `u:${item.id}`),
-    ...jobItems.map((job) => `j:${job.id}`),
-  ];
-  $: {
-    const fresh = activeIds.some((id) => !knownActive.has(id));
-    knownActive = new Set(activeIds);
-    if (fresh && !$uploadsOpen) uploadsOpen.set(true);
-  }
-
-  $: if (!hasContent && $uploadsOpen) uploadsOpen.set(false);
 
   onMount(() => {
     restoreQueue();
-    const tick = setInterval(() => { clock = Date.now(); }, 500);
-    return () => clearInterval(tick);
   });
 
   function resolve(choice, applyAll) {
@@ -93,14 +72,13 @@
   }
 </script>
 
-{#if $uploadsOpen && hasContent}
+{#if hasContent}
   <section class="upload-panel" aria-label="Aktivität" transition:slide={{ duration: 220 }}>
     <input class="sr-only" type="file" data-testid="activity-upload-input" bind:this={fileInput} on:change={onFileChosen} />
     <header class="upload-head">
       <Icon name="activity" size={18} />
       <strong>Aktivität</strong>
       <span class="sub">{openCount ? `${openCount} offen` : 'Alles erledigt'}</span>
-      <IconButton name="minus" label="Aktivitäten einklappen" onclick={() => ($uploadsOpen = false)} />
     </header>
 
     {#if jobItems.length}
@@ -124,13 +102,13 @@
       </ol>
     {/if}
 
-    {#if active.length || recentDone.length}
+    {#if items.length}
       {#if $queue.length > MAX_VISIBLE_ITEMS}
         <p class="menu-note" style="margin:0;padding:var(--space-2) var(--space-4)">{$queue.length - MAX_VISIBLE_ITEMS} weitere Uploads werden nicht angezeigt.</p>
       {/if}
       <ol class="upload-list" aria-label="Uploads">
         {#each visibleItems as item (item.id)}
-          {#if item.status !== 'canceled' && (item.status !== 'done' || recentDone.includes(item))}
+          {#if item.status !== 'canceled'}
             <li class="upload-item" data-state={item.status}>
               <ProgressLoader
                 value={item.status === 'done' ? 100 : Math.round((item.uploaded / (item.size || 1)) * 100)}
@@ -184,15 +162,4 @@
       </svelte:fragment>
     </Dialog>
   </section>
-{:else if hasContent && !$uploadsOpen}
-  <button
-    type="button"
-    class="activity-pill"
-    on:click={() => ($uploadsOpen = true)}
-    aria-label={`Aktivität öffnen, ${openCount || 0} offen`}
-    transition:fade={{ duration: 160 }}
-  >
-    <span class="spinner-ring" class:is-done={openCount === 0} style={`--p:${openCount ? progress.percent : 100}`} aria-hidden="true"></span>
-    <span>{openCount ? `${openCount} aktiv` : 'Fertig'}</span>
-  </button>
 {/if}
