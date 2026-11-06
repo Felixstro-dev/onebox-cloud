@@ -47,10 +47,65 @@
   let updateCheckBusy = false;
   let updateBusy = false;
   let updateError = '';
+  let widgetOpen = false;
+  let widgetTitle = 'Meine Onebox';
+  let widgetSize = 'medium';
+  let widgetColor = '#d97757';
+  let widgetImage = '';
+  let widgetImageName = '';
+  let widgetInput;
 
   $: isAdmin = $user?.role === 'admin';
 
-  onMount(() => { load(); loadMetrics(); loadSecurity(); });
+  onMount(() => { load(); loadMetrics(); loadSecurity(); loadWidget(); });
+
+  function loadWidget() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('onebox-home-widget') || '{}');
+      widgetTitle = saved.title || widgetTitle;
+      widgetSize = saved.size || widgetSize;
+      widgetColor = saved.color || widgetColor;
+      widgetImage = saved.image || '';
+      widgetImageName = saved.imageName || '';
+    } catch {}
+  }
+
+  function openWidgetDesigner() {
+    loadWidget();
+    widgetOpen = true;
+  }
+
+  function chooseWidgetImage() {
+    widgetInput?.click();
+  }
+
+  function onWidgetImage(event) {
+    const file = event.currentTarget.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      widgetImage = reader.result;
+      widgetImageName = file.name;
+    };
+    reader.readAsDataURL(file);
+    event.currentTarget.value = '';
+  }
+
+  function saveWidget() {
+    try {
+      localStorage.setItem('onebox-home-widget', JSON.stringify({
+        title: widgetTitle.trim() || 'Meine Onebox',
+        size: widgetSize,
+        color: widgetColor,
+        image: widgetImage,
+        imageName: widgetImageName,
+      }));
+      widgetOpen = false;
+      notify('Widget-Design auf diesem Gerät gespeichert.', 'success');
+    } catch {
+      notify('Das Bild ist zu groß für den lokalen Gerätespeicher.', 'error');
+    }
+  }
 
   async function load() {
     loading = true;
@@ -420,6 +475,12 @@
           {/if}
         </section>
 
+        <section class="card widget-settings-card" aria-labelledby="widget-title">
+          <div class="card-head"><h3 id="widget-title">Home-Bildschirm-Widget</h3><Icon name="tablet" size={17} /></div>
+          <p class="stat-foot">Gestalte eine persönliche Onebox-Kachel für deinen iPad-Home-Bildschirm. Bild, Name und Farbe bleiben auf diesem Gerät gespeichert.</p>
+          <Button variant="secondary" size="sm" icon="sparkles" onclick={openWidgetDesigner}>Widget gestalten</Button>
+        </section>
+
         <section class="card" aria-labelledby="dav-title">
           <div class="card-head"><h3 id="dav-title">WebDAV</h3><Icon name="network" size={17} /></div>
           <p class="stat-foot" style="margin-bottom:var(--space-3)">Binde Onebox in deinem Dateimanager ein. Melde dich mit deinem Benutzernamen und Passwort an.</p>
@@ -508,3 +569,77 @@
     <Button variant="primary" icon="copy" onclick={copyRecoveryCodes}>Kopieren</Button>
   </svelte:fragment>
 </Dialog>
+
+<Dialog open={widgetOpen} title="Home-Bildschirm-Widget" description="Deine Gestaltung wird nur in diesem Browser auf dem iPad gespeichert." size="md" onclose={() => (widgetOpen = false)}>
+  <div class="widget-editor">
+    <div class="widget-preview-wrap">
+      <div class="widget-preview widget-preview--{widgetSize}" style:--widget-color={widgetColor}>
+        {#if widgetImage}<img src={widgetImage} alt="" />{/if}
+        <div class="widget-preview__scrim"></div>
+        <div class="widget-preview__content">
+          <span class="widget-preview__mark"><Icon name="cloud" size={18} /></span>
+          <strong>{widgetTitle.trim() || 'Meine Onebox'}</strong>
+          <span>Deine Dateien, überall</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="widget-fields">
+      <Field label="Name des Widgets" id="widget-name" hint="Wird direkt auf der Kachel angezeigt.">
+        <input id="widget-name" class="input" maxlength="32" bind:value={widgetTitle} placeholder="Meine Onebox" />
+      </Field>
+      <div class="widget-field-row">
+        <Field label="Größe" id="widget-size">
+          <select id="widget-size" class="input" bind:value={widgetSize}>
+            <option value="small">Klein</option>
+            <option value="medium">Mittel</option>
+            <option value="large">Groß</option>
+          </select>
+        </Field>
+        <Field label="Akzentfarbe" id="widget-color">
+          <input id="widget-color" class="widget-color-input" type="color" bind:value={widgetColor} aria-label="Akzentfarbe auswählen" />
+        </Field>
+      </div>
+      <div class="widget-image-picker">
+        <input class="sr-only" type="file" accept="image/*" bind:this={widgetInput} on:change={onWidgetImage} />
+        <div>
+          <strong>Eigenes Bild</strong>
+          <span class="stat-foot">PNG oder JPG als Hintergrund</span>
+          {#if widgetImageName}<span class="widget-image-name">{widgetImageName}</span>{/if}
+        </div>
+        <Button variant="secondary" size="sm" icon="image-plus" onclick={chooseWidgetImage}>Bild auswählen</Button>
+      </div>
+      <p class="widget-note"><Icon name="info" size={16} /> Nach dem Speichern in Safari: Teilen → „Zum Home-Bildschirm“. Das Widget kann anschließend über „Widget hinzufügen“ platziert werden.</p>
+    </div>
+  </div>
+  <svelte:fragment slot="footer">
+    <Button variant="quiet" onclick={() => (widgetOpen = false)}>Abbrechen</Button>
+    <Button variant="primary" icon="check" onclick={saveWidget}>Widget speichern</Button>
+  </svelte:fragment>
+</Dialog>
+
+<style>
+  .widget-settings-card { display: grid; gap: var(--space-3); }
+  .widget-editor { display: grid; grid-template-columns: minmax(12rem, 0.85fr) minmax(15rem, 1.15fr); gap: var(--space-6); align-items: start; }
+  .widget-preview-wrap { display: grid; place-items: center; min-height: 15rem; padding: var(--space-5); border-radius: var(--radius-xl); background: var(--color-bg-deep); }
+  .widget-preview { position: relative; display: flex; overflow: hidden; width: 9.5rem; aspect-ratio: 1; border-radius: 1.35rem; background: var(--widget-color); color: #fff; isolation: isolate; }
+  .widget-preview--small { width: 7.5rem; }
+  .widget-preview--large { width: 11rem; aspect-ratio: 2 / 1; }
+  .widget-preview img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
+  .widget-preview__scrim { position: absolute; inset: 0; z-index: -1; background: linear-gradient(145deg, color-mix(in srgb, var(--widget-color) 76%, transparent), rgba(0, 0, 0, .45)); }
+  .widget-preview__content { display: grid; align-content: space-between; gap: .4rem; width: 100%; padding: 1rem; text-shadow: 0 1px 5px rgba(0, 0, 0, .35); }
+  .widget-preview__content strong { overflow-wrap: anywhere; font-size: var(--text-sm); }
+  .widget-preview__content > span:last-child { font-size: .68rem; opacity: .8; }
+  .widget-preview__mark { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: .7rem; background: rgba(255, 255, 255, .2); }
+  .widget-fields { display: grid; gap: var(--space-4); }
+  .widget-field-row { display: grid; grid-template-columns: 1fr 5rem; gap: var(--space-3); align-items: end; }
+  .widget-color-input { width: 100%; height: 2.75rem; padding: .25rem; border: 1px solid var(--color-border-default); border-radius: var(--radius-md); background: var(--color-bg-elevated); cursor: pointer; }
+  .widget-image-picker { display: flex; justify-content: space-between; gap: var(--space-3); align-items: center; padding: var(--space-3); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg); }
+  .widget-image-picker > div { display: grid; gap: .2rem; min-width: 0; }
+  .widget-image-name { overflow: hidden; color: var(--color-text-secondary); font-size: var(--text-xs); text-overflow: ellipsis; white-space: nowrap; }
+  .widget-note { display: flex; gap: .5rem; align-items: flex-start; margin: 0; color: var(--color-text-secondary); font-size: var(--text-xs); line-height: 1.5; }
+  @media (max-width: 640px) {
+    .widget-editor { grid-template-columns: 1fr; }
+    .widget-preview-wrap { min-height: 12rem; }
+  }
+</style>

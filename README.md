@@ -170,14 +170,14 @@ Ablauf beim Klick auf **Jetzt aktualisieren**:
    Wartungsseite automatisch zurück zur Startseite.
 
 Damit die Prüfung funktioniert, wird `ONEB_VERSION` beim Bauen des Images aus
-dem Git-Tag gesetzt (bei Branch-Builds `0.2.1`). Die Variable kann bei Bedarf in
+dem Git-Tag gesetzt (bei Branch-Builds `0.2.2`). Die Variable kann bei Bedarf in
 Compose überschrieben werden, normalerweise ist das nicht nötig.
 
 Wichtige Variablen:
 
 | Variable | Standard | Beschreibung |
 | --- | --- | --- |
-| `ONEB_VERSION` | `0.2.1` | Installierte Version für die Update-Prüfung |
+| `ONEB_VERSION` | `0.2.2` | Installierte Version für die Update-Prüfung |
 | `UPDATE_API_URL` | – | Interne Updater-URL, in Compose vorbelegt |
 | `UPDATE_API_TOKEN` | – | Token für die Updater-API (in `.env` setzen) |
 | `DOCKER_API_VERSION` | `1.44` | Docker-API-Version, die der Updater per CLI-Flag verwendet; nur für ältere Daemons absenken |

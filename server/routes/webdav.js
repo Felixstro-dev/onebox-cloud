@@ -4,7 +4,7 @@ import { db, schema } from '../db/index.js';
 import { badRequest, notFound, unauthorized } from '../lib/errors.js';
 import { getNode, resolvePath, uniqueName, moveNode, createFolder, trashNodes, toClient } from '../services/nodes.js';
 import { hashToken } from '../lib/ids.js';
-import { hashPassword, verifyPassword, rateLimit } from '../services/auth.js';
+import { hashPassword, verifyPassword, rateLimit, resetRateLimit } from '../services/auth.js';
 import { commitObject, objectPath, tempPath } from '../services/storage.js';
 import { safeInlineMime } from '../lib/names.js';
 import { sendFile } from './files.js';
@@ -22,10 +22,13 @@ async function davUser(req) {
   const credentials = basicUser(req);
   if (!credentials) throw unauthorized('WebDAV needs a username and password.');
   const key = `dav:${req.ip}:${credentials.username}`;
-  if (!rateLimit(key, { max: 20, windowMs: 60000 })) throw unauthorized('Too many attempts.');
   const rows = db.select().from(schema.users).all();
   const user = rows.find((row) => row.username.toLowerCase() === credentials.username.toLowerCase());
-  if (!user || user.disabled || !(await verifyPassword(user.passwordHash, credentials.password))) throw unauthorized('WebDAV credentials are wrong.');
+  if (!user || user.disabled || !(await verifyPassword(user.passwordHash, credentials.password))) {
+    if (!rateLimit(key, { max: 100, windowMs: 60000 })) throw unauthorized('Too many attempts.');
+    throw unauthorized('WebDAV credentials are wrong.');
+  }
+  resetRateLimit(key);
   return user;
 }
 

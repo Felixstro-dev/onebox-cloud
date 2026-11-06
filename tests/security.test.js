@@ -84,6 +84,32 @@ test('Sicherheit: Pfade, CSRF, Header, Rate-Limit und 2FA', async (t) => {
       headers: { cookie, authorization: `Basic ${credentials}` },
     });
     assert.equal(remove.statusCode, 204, remove.payload);
+
+    await t.test('zählt gültige DAV-Anfragen nicht als fehlgeschlagene Logins', async () => {
+      for (let index = 0; index < 7; index += 1) {
+        const before = await app.inject({
+          method: 'PROPFIND',
+          url: '/dav',
+          headers: { authorization: `Basic ${credentials}` },
+        });
+        assert.equal(before.statusCode, 207, before.payload);
+
+        const upload = await app.inject({
+          method: 'PUT',
+          url: `/dav/webdav-batch-${index}.txt`,
+          headers: { authorization: `Basic ${credentials}`, 'content-type': 'text/plain' },
+          payload: Buffer.from(`file ${index}`),
+        });
+        assert.equal(upload.statusCode, 201, upload.payload);
+
+        const after = await app.inject({
+          method: 'PROPFIND',
+          url: '/dav',
+          headers: { authorization: `Basic ${credentials}` },
+        });
+        assert.equal(after.statusCode, 207, after.payload);
+      }
+    });
   });
 
   await t.test('lehnt unsichere Ordnernamen und Pfade ab', async () => {
