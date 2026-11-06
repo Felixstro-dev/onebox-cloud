@@ -88,7 +88,7 @@ export async function registerSystemRoutes(app) {
 
   app.get('/api/v1/system/update/status', async (req) => {
     requireAdmin(req);
-    const status = await checkForUpdate();
+    const status = await checkForUpdate({ force: true });
     return { ...status, autoUpdate: Boolean(config.updateApiUrl), maintenance: maintenanceState() };
   });
 
