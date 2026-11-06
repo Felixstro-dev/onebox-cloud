@@ -43,6 +43,13 @@
       "when": 1793791308138,
       "tag": "0005_serious_frog_thor",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1793966181972,
+      "tag": "0006_slim_viper",
+      "breakpoints": true
     }
   ]
 }

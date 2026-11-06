@@ -112,8 +112,20 @@ export async function restoreQueue() {
     xhr: null,
     paused: item.status === 'paused',
   })));
-  notify(`${saved.length} unterbrochene Uploads werden fortgesetzt.`, 'info', 6000);
-  pump();
+  const restoredIds = new Set(saved.map((item) => item.itemId));
+  const discard = async () => {
+    await Promise.all(saved.map(async (item) => {
+      if (item.sessionId) cancelUpload(item.sessionId).catch(() => {});
+      await Promise.all([idbDelete('sessions', item.sessionId), idbDelete('files', item.itemId)]);
+    }));
+    queue.update((items) => items.filter((item) => !restoredIds.has(item.id)));
+  };
+  notify(`${saved.length} unterbrochene Uploads gefunden. Fortsetzen?`, 'info', 0, {
+    actions: [
+      { label: 'Fortsetzen', icon: 'check', onClick: pump },
+      { label: 'Ablehnen', icon: 'x', onClick: discard },
+    ],
+  });
 }
 
 export function setUploadConcurrency(value) {

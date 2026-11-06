@@ -188,7 +188,14 @@
   function goToPage(page) {
     const target = Math.max(1, Math.min(pageCount, page));
     current = target;
-    tick().then(() => pageEls[target - 1]?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+    tick().then(() => {
+      const element = pageEls[target - 1];
+      if (!element || !scroller) return;
+      const scrollerRect = scroller.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
+      const top = scroller.scrollTop + elementRect.top - scrollerRect.top;
+      scroller.scrollTo({ top, behavior: 'smooth' });
+    });
   }
 
   let scrollPending = false;

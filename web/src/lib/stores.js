@@ -22,7 +22,11 @@ export function notify(message, kind = 'info', timeout = 4200, action = null) {
   toasts.update((items) => {
     if (lastToast?.key === key && now - lastToast.at < 100) return items;
     lastToast = { key, at: now };
-    const next = [...items, { id, message, kind, action }];
+    const next = [...items, {
+      id, message, kind,
+      action: action?.actions ? null : action,
+      actions: action?.actions || null,
+    }];
     if (next.length > MAX_TOASTS) next.shift();
     return next;
   });
@@ -34,6 +38,12 @@ export function notify(message, kind = 'info', timeout = 4200, action = null) {
 export function runToastAction(toast) {
   dismiss(toast.id);
   try { toast.action?.onClick?.(); } catch { /* Die Aktion meldet eigene Fehler. */ }
+}
+
+/** Führt eine einzelne Aktion aus, ohne die restlichen Toast-Aktionen zu verändern. */
+export function runToastChoice(toast, choice) {
+  dismiss(toast.id);
+  try { choice?.onClick?.(); } catch { /* Die Aktion meldet eigene Fehler. */ }
 }
 
 export function dismiss(id) {

@@ -201,13 +201,15 @@ export async function registerAuthRoutes(app) {
         properties: { currentPassword: { type: 'string' }, newPassword: { type: 'string', minLength: 10, maxLength: 256 } },
       },
     },
-  }, async (req) => {
+  }, async (req, reply) => {
     const user = requireUser(req);
     if (!(await verifyPassword(user.passwordHash, req.body.currentPassword))) throw unauthorized('Current password is wrong.');
     const hash = await hashPassword(req.body.newPassword);
     db.update(schema.users).set({ passwordHash: hash }).where(eq(schema.users.id, user.id)).run();
     db.delete(schema.userSessions).where(eq(schema.userSessions.userId, user.id)).run();
-    return { ok: true, signedOut: true };
+    const session = createSession(user.id, req);
+    reply.setCookie(COOKIE, session.token, cookieOptions);
+    return { ok: true, signedOut: false };
   });
 
   app.get('/api/v1/auth/sessions', async (req) => {

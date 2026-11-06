@@ -269,6 +269,7 @@
       await patch('/api/v1/settings', {
         autoThrottle: settings.autoThrottle,
         registrationOpen: settings.registrationOpen,
+        chatEnabled: settings.chatEnabled,
         defaultQuota: Math.round((Number(quotaGb) || 0) * 1073741824),
       });
       notify('Einstellungen gespeichert.', 'success');
@@ -291,8 +292,7 @@
     try {
       await post('/api/v1/auth/password', { currentPassword, newPassword });
       passwordOpen = false;
-      notify('Passwort geändert. Bitte melde dich neu an.', 'success');
-      setTimeout(() => window.location.reload(), 900);
+      notify('Passwort geändert.', 'success');
     } catch (err) { passwordError = err.message; } finally { passwordBusy = false; }
   }
 

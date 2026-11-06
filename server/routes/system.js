@@ -7,7 +7,7 @@ import { badRequest } from '../lib/errors.js';
 import { db, schema, runMigrations } from '../db/index.js';
 import { desc, eq, sql } from 'drizzle-orm';
 import { usedBytes } from '../services/nodes.js';
-import { getMessages, addMessage } from '../addons/chat/api/chat.js';
+import { getMessages, addMessage, createGroup, listConversations } from '../addons/chat/api/chat.js';
 import {
   checkForUpdate, clearMaintenance, maintenancePage, maintenanceState, startMaintenance, triggerUpdater,
 } from '../services/updates.js';
@@ -54,14 +54,27 @@ export async function registerSystemRoutes(app) {
   });
   app.get('/api/v1/chat/messages', async (req) => {
     const user = requireUser(req);
-    return await getMessages();
+    return await getMessages({ userId: user.id, scope: req.query.scope, scopeId: req.query.scopeId });
+  });
+
+  app.get('/api/v1/chat/conversations', async (req) => {
+    const user = requireUser(req);
+    return listConversations(user.id);
+  });
+
+  app.post('/api/v1/chat/groups', async (req) => {
+    const user = requireUser(req);
+    return { group: createGroup({ name: req.body.name, userId: user.id, memberIds: req.body.memberIds || [] }) };
   });
 
   app.post('/api/v1/chat/messages', async (req) => {
     const user = requireUser(req);
     const { text } = req.body;
     if (!text || text.trim() === '') throw badRequest('Nachricht ist leer.');
-    return await addMessage({ text: text.trim(), user: user.id, displayName: user.displayName || user.username });
+    return await addMessage({
+      text: text.trim(), userId: user.id, displayName: user.displayName || user.username,
+      scope: req.body.scope, scopeId: req.body.scopeId,
+    });
   });
 
   // Öffentlich, damit die Wartungsseite und Docker den Status prüfen können.
@@ -125,12 +138,15 @@ export async function registerSystemRoutes(app) {
           theme: { type: 'string', enum: ['dark', 'light'] },
           defaultQuota: { type: 'integer', minimum: 0 },
           registrationOpen: { type: 'boolean' },
+          chatEnabled: { type: 'boolean' },
         },
       },
     },
   }, async (req) => {
-    requireAdmin(req);
-    const allowed = ['performanceProfile', 'autoThrottle', 'theme', 'defaultQuota', 'registrationOpen'];
+    const user = requireUser(req);
+    const allowed = user.role === 'admin'
+      ? ['performanceProfile', 'autoThrottle', 'theme', 'defaultQuota', 'registrationOpen', 'chatEnabled']
+      : ['theme'];
     for (const [key, value] of Object.entries(req.body)) {
       if (!allowed.includes(key)) continue;
       if (key === 'performanceProfile' && !PROFILES[value]) throw badRequest('Unknown profile.');

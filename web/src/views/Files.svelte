@@ -73,6 +73,7 @@
   let lastRefresh = -1;
   let nextCursor = null;
   let loadingMore = false;
+  let loadId = 0;
   let lastSort = sort;
   let lastDir = dir;
 
@@ -354,12 +355,15 @@
   }
 
   async function load() {
+    const requestId = ++loadId;
     loading = true;
     failed = '';
+    nextCursor = null;
     resetSelection();
     try {
       const query = encodeURIComponent(searchQuery.trim());
       const data = await get(`/api/v1/files?parent=${folderId || 'root'}&q=${query}&sort=${sort}&dir=${dir}&limit=100`);
+      if (requestId !== loadId) return;
       items = data.items;
       total = Number(data.total) || items.length;
       breadcrumbs = data.breadcrumbs || [];
@@ -373,18 +377,21 @@
         }
       }
     } catch (err) {
+      if (requestId !== loadId) return;
       failed = err.message;
     } finally {
-      loading = false;
+      if (requestId === loadId) loading = false;
     }
   }
 
   async function loadMore() {
     if (loadingMore || !nextCursor) return;
+    const requestId = loadId;
     loadingMore = true;
     try {
       const query = encodeURIComponent(searchQuery.trim());
       const data = await get(`/api/v1/files?parent=${folderId || 'root'}&q=${query}&sort=${sort}&dir=${dir}&limit=100&cursor=${encodeURIComponent(nextCursor)}`);
+      if (requestId !== loadId) return;
       if (Array.isArray(data.items) && data.items.length) items = [...items, ...data.items];
       if (data.total !== undefined) total = Number(data.total) || total;
       nextCursor = data.next || null;

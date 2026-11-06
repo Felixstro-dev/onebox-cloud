@@ -124,7 +124,7 @@
 
   async function toggleTheme() {
     applyTheme(theme === 'dark' ? 'light' : 'dark');
-    if (boot === 'ready') {
+    if (boot === 'ready' && $user?.role === 'admin') {
       try { await patch('/api/v1/settings', { theme }); } catch {}
     }
   }

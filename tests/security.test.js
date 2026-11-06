@@ -310,7 +310,28 @@ test('Sicherheit: Pfade, CSRF, Header, Rate-Limit und 2FA', async (t) => {
       headers: { cookie: memberCookie, 'x-onebox-csrf': '1' },
     });
     assert.equal(changed.statusCode, 200, changed.payload);
-    assert.equal(changed.json().signedOut, true);
+    assert.equal(changed.json().signedOut, false);
+    const memberCookieAfterChange = changed.headers['set-cookie'].split(';')[0];
+    const stillSignedIn = await app.inject({
+      method: 'GET', url: '/api/v1/auth/me', headers: { cookie: memberCookieAfterChange },
+    });
+    assert.equal(stillSignedIn.statusCode, 200, stillSignedIn.payload);
+
+    const themeChanged = await app.inject({
+      method: 'PATCH', url: '/api/v1/settings',
+      payload: { theme: 'light' },
+      headers: { cookie: memberCookieAfterChange, 'x-onebox-csrf': '1' },
+    });
+    assert.equal(themeChanged.statusCode, 200, themeChanged.payload);
+    assert.equal(themeChanged.json().settings.theme, 'light');
+
+    const protectedSetting = await app.inject({
+      method: 'PATCH', url: '/api/v1/settings',
+      payload: { registrationOpen: true },
+      headers: { cookie: memberCookieAfterChange, 'x-onebox-csrf': '1' },
+    });
+    assert.equal(protectedSetting.statusCode, 200, protectedSetting.payload);
+    assert.equal(protectedSetting.json().settings.registrationOpen, false);
   });
 
   await t.test('lädt und sendet Chat-Nachrichten', async () => {

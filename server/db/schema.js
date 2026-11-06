@@ -37,6 +37,15 @@ export const groupMembers = sqliteTable('group_members', {
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
 }, (t) => [primaryKey({ columns: [t.groupId, t.userId] })]);
 
+export const chatMessages = sqliteTable('chat_messages', {
+  id: text('id').primaryKey(),
+  scope: text('scope').notNull().default('global'),
+  scopeId: text('scope_id').notNull().default('global'),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  text: text('text').notNull(),
+  createdAt: integer('created_at').notNull().default(now),
+}, (t) => [index('chat_messages_scope_idx').on(t.scope, t.scopeId, t.createdAt)]);
+
 export const nodes = sqliteTable('nodes', {
   id: text('id').primaryKey(),
   ownerId: text('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
