@@ -3,10 +3,13 @@ import { config, paths, assertValidConfig } from './config.js';
 import { runMigrations, closeDb, db, schema } from './db/index.js';
 import { and, eq } from 'drizzle-orm';
 import { cleanupAbandonedUploads } from './services/storage.js';
+import { clearMaintenance, maintenanceState } from './services/updates.js';
 
 async function main() {
   assertValidConfig();
   await runMigrations();
+  const previousMaintenance = maintenanceState();
+  if (previousMaintenance.reason === 'update') clearMaintenance();
   const { buildApp } = await import('./app.js');
   const app = await buildApp();
   await app.listen({ port: config.port, host: config.host });

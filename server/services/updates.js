@@ -136,7 +136,9 @@ export async function triggerUpdater() {
 
 /** Selbstständige Wartungsseite – funktioniert ohne Build-Assets und JS-Bundles. */
 export function maintenancePage() {
-  const seconds = maintenanceSecondsLeft() || 30;
+  const state = maintenanceState();
+  const targetVersion = state.version || '';
+  const initialSeconds = state.active ? maintenanceSecondsLeft() : 0;
   return `<!doctype html>
 <html lang="de">
 <head>
@@ -157,7 +159,7 @@ export function maintenancePage() {
     .timer { margin-top: 1.5rem; font-variant-numeric: tabular-nums; color: #e6d9c2; }
     .bar { height: .35rem; margin-top: .8rem; border-radius: 99px; background: #3a352c; overflow: hidden; }
     .bar span { display: block; height: 100%; width: 100%; background: #c9a26b; transform-origin: left center;
-      transform: scaleX(${Math.min(1, seconds / 45)}); transition: transform 1s linear; }
+      transform: scaleX(${initialSeconds ? 1 : 0}); transition: transform 1s linear; }
     @media (prefers-color-scheme: light) {
       :root { color-scheme: light; }
       body { background: #f6f1e8; color: #231f19; }
@@ -172,38 +174,55 @@ export function maintenancePage() {
   <main class="card" role="status" aria-live="polite">
     <div class="mark" aria-hidden="true">ob</div>
     <h1>Onebox wird aktualisiert</h1>
-    <p>Die Datenbank-Migrationen werden angewendet und der Container startet neu.
-       Die Seite ist in wenigen Sekunden automatisch wieder erreichbar.</p>
-    <p class="timer">Neustart in <strong id="seconds">${seconds}</strong> Sekunden …</p>
+     <p id="status">Die Datenbank-Migrationen werden angewendet. Onebox wartet auf den neuen Container.</p>
+     <p class="timer"><strong id="seconds">${initialSeconds || '–'}</strong><span id="timer-label"> verbleibende Prüfzeit</span></p>
     <div class="bar" aria-hidden="true"><span id="bar"></span></div>
   </main>
   <script>
     (function () {
-      var left = ${seconds};
+      var left = ${initialSeconds};
+      var targetVersion = ${JSON.stringify(targetVersion)};
       var seconds = document.getElementById('seconds');
+      var status = document.getElementById('status');
+      var timerLabel = document.getElementById('timer-label');
       var bar = document.getElementById('bar');
       function render() {
-        seconds.textContent = Math.max(0, left);
-        bar.style.transform = 'scaleX(' + Math.min(1, Math.max(0, left) / ${Math.max(45, seconds)}) + ')';
+        seconds.textContent = left > 0 ? Math.max(0, left) : '–';
+        timerLabel.textContent = left > 0 ? ' verbleibende Prüfzeit' : ' warte auf Wiederverbindung';
+        bar.style.transform = 'scaleX(' + (left > 0 ? 1 : 0) + ')';
       }
       render();
-      var timer = setInterval(function () { left -= 1; render(); }, 1000);
+      var timer = setInterval(function () {
+        if (left > 0) { left -= 1; render(); }
+      }, 1000);
       async function poll() {
         try {
-          var res = await fetch('/api/v1/system/maintenance', { cache: 'no-store' });
-          var state = await res.json();
-          if (!state.active) {
+          var responses = await Promise.all([
+            fetch('/api/v1/system/maintenance', { cache: 'no-store' }),
+            fetch('/api/v1/system/health', { cache: 'no-store' }),
+          ]);
+          var state = await responses[0].json();
+          var health = await responses[1].json();
+          var ready = health.status === 'ok' && (!targetVersion || health.version === targetVersion);
+          if (ready && !state.active) {
             clearInterval(timer);
+            status.textContent = 'Onebox ist wieder erreichbar. Du wirst weitergeleitet …';
             window.location.replace('/');
             return;
           }
-          left = Math.max(1, Math.ceil((state.until - Date.now()) / 1000));
+          if (state.active && state.until) left = Math.max(0, Math.ceil((state.until - Date.now()) / 1000));
+          status.textContent = ready
+            ? 'Der neue Container läuft. Abschluss wird geprüft …'
+            : 'Onebox wartet auf den neuen Container. Die Verbindung wird automatisch geprüft.';
           render();
         } catch (error) {
-          // Der Container ist kurz weg – weiter warten.
+          status.textContent = 'Onebox startet gerade neu. Die Verbindung wird automatisch wiederhergestellt.';
+          left = 0;
+          render();
         }
       }
-      setInterval(poll, 3000);
+      poll();
+      setInterval(poll, 2000);
     })();
   </script>
 </body>

@@ -24,7 +24,7 @@ export const config = {
   sessionDays: int(process.env.SESSION_DAYS, 30),
   maxUploadBytes: int(process.env.MAX_UPLOAD_BYTES, 0),
   logLevel: process.env.LOG_LEVEL || 'info',
-  version: process.env.ONEB_VERSION || '0.2.6',
+  version: process.env.ONEB_VERSION || '0.2.7',
   updateRepo: process.env.UPDATE_CHECK_REPO || 'Felixstro-dev/onebox-cloud',
   updateApiUrl: process.env.UPDATE_API_URL || '',
   updateApiToken: process.env.UPDATE_API_TOKEN || '',

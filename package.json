@@ -1,6 +1,6 @@
 {
   "name": "onebox",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "private": true,
   "description": "Self-hosted cloud storage in one container.",
   "type": "module",
