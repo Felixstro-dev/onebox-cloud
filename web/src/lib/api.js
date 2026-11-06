@@ -13,7 +13,7 @@ function headers(extra = {}) {
   return { 'x-onebox-csrf': '1', ...extra };
 }
 
-export async function api(method, path, body = undefined, { access = null, raw = false } = {}) {
+export async function api(method, path, body = undefined, { access = null, raw = false, silent = false } = {}) {
   const options = { method, credentials: 'same-origin', headers: headers() };
   if (body !== undefined && !(body instanceof FormData)) {
     options.headers['content-type'] = 'application/json';
@@ -35,7 +35,7 @@ export async function api(method, path, body = undefined, { access = null, raw =
       window.location.assign('/maintenance');
     }
     const message = data?.error?.message || response.statusText || 'Die Anfrage ist fehlgeschlagen.';
-    notify(message, 'error');
+    if (!silent) notify(message, 'error');
     throw new ApiError(response.status, data?.error?.code || 'error', message, data?.error?.details);
   }
   return data;
@@ -96,7 +96,7 @@ export function completeUpload(id, { conflict = 'keepBoth' } = {}) {
 }
 
 export function cancelUpload(id) {
-  return del(`/api/v1/uploads/${id}`);
+  return del(`/api/v1/uploads/${id}`, { silent: true });
 }
 
 export function publicShare(token, { access = null } = {}) {

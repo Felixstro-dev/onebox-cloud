@@ -115,7 +115,7 @@ export async function restoreQueue() {
   const restoredIds = new Set(saved.map((item) => item.itemId));
   const discard = async () => {
     await Promise.all(saved.map(async (item) => {
-      if (item.sessionId) cancelUpload(item.sessionId).catch(() => {});
+      if (item.sessionId) await cancelUpload(item.sessionId).catch(() => {});
       await Promise.all([idbDelete('sessions', item.sessionId), idbDelete('files', item.itemId)]);
     }));
     queue.update((items) => items.filter((item) => !restoredIds.has(item.id)));

@@ -138,7 +138,7 @@ export async function triggerUpdater() {
 export function maintenancePage() {
   const state = maintenanceState();
   const targetVersion = state.version || '';
-  const initialSeconds = state.active ? maintenanceSecondsLeft() : 0;
+  const startedAt = Number(state.startedAt) || Date.now();
   return `<!doctype html>
 <html lang="de">
 <head>
@@ -151,50 +151,52 @@ export function maintenancePage() {
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100dvh; display: grid; place-items: center; padding: 2rem;
       background: #1a1815; color: #f4efe6; font-family: ui-sans-serif, system-ui, sans-serif; }
-    .card { width: min(32rem, 100%); padding: 2.5rem; border: 1px solid #3a352c; border-radius: 1.25rem; background: #221f1b; }
-    .mark { width: 3rem; height: 3rem; display: grid; place-items: center; border-radius: 0.75rem;
+    .card { width: min(36rem, 100%); padding: 2.25rem; border: 1px solid #3a352c; border-radius: 1.25rem; background: #221f1b; }
+    .eyebrow { margin-bottom: 1.25rem; color: #b9b0a3; font: 600 .72rem/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+    .mark { width: 3.25rem; height: 3.25rem; display: grid; place-items: center; border-radius: 0.9rem;
       background: #c9a26b; color: #221f1b; font-weight: 700; margin-bottom: 1.5rem; }
-    h1 { font-size: 1.6rem; margin: 0 0 .6rem; font-weight: 500; letter-spacing: -.02em; }
+    h1 { font: 400 2rem/1.1 Georgia, 'Times New Roman', serif; margin: 0 0 .75rem; }
     p { margin: 0; color: #b9b0a3; line-height: 1.6; }
-    .timer { margin-top: 1.5rem; font-variant-numeric: tabular-nums; color: #e6d9c2; }
-    .bar { height: .35rem; margin-top: .8rem; border-radius: 99px; background: #3a352c; overflow: hidden; }
-    .bar span { display: block; height: 100%; width: 100%; background: #c9a26b; transform-origin: left center;
-      transform: scaleX(${initialSeconds ? 1 : 0}); transition: transform 1s linear; }
+    .status-row { display: flex; align-items: center; gap: .65rem; margin-top: 1.5rem; color: #e6d9c2; }
+    .pulse { width: .55rem; height: .55rem; border-radius: 50%; background: #c9a26b; box-shadow: 0 0 0 0 rgb(201 162 107 / .45); animation: pulse 1.8s ease-out infinite; }
+    .meta { margin-top: 1rem; font-size: .82rem; }
+    .meta strong { color: #e6d9c2; font-weight: 600; }
+    .bar { height: .2rem; margin-top: 1.5rem; border-radius: 99px; background: #3a352c; overflow: hidden; }
+    .bar span { display: block; width: 34%; height: 100%; background: #c9a26b; transform: translateX(-120%); animation: progress 1.5s ease-in-out infinite; }
+    @keyframes pulse { 70% { box-shadow: 0 0 0 .55rem rgb(201 162 107 / 0); } 100% { box-shadow: 0 0 0 0 rgb(201 162 107 / 0); } }
+    @keyframes progress { 100% { transform: translateX(360%); } }
+    @media (prefers-reduced-motion: reduce) { .pulse, .bar span { animation: none; } }
     @media (prefers-color-scheme: light) {
       :root { color-scheme: light; }
       body { background: #f6f1e8; color: #231f19; }
       .card { background: #fffdf9; border-color: #e3d9cb; }
       p { color: #6d6357; }
-      .timer { color: #3b3329; }
+      .status-row, .meta strong { color: #3b3329; }
       .bar { background: #e8ddcd; }
     }
   </style>
 </head>
 <body>
   <main class="card" role="status" aria-live="polite">
+    <div class="eyebrow">Onebox · Live-Status</div>
     <div class="mark" aria-hidden="true">ob</div>
     <h1>Onebox wird aktualisiert</h1>
-     <p id="status">Die Datenbank-Migrationen werden angewendet. Onebox wartet auf den neuen Container.</p>
-     <p class="timer"><strong id="seconds">${initialSeconds || '–'}</strong><span id="timer-label"> verbleibende Prüfzeit</span></p>
+    <p id="status">Die Datenbank-Migrationen werden angewendet. Onebox wartet auf den neuen Container.</p>
+    <div class="status-row"><span class="pulse" aria-hidden="true"></span><span>Verbindung wird automatisch geprüft</span></div>
+    <p class="meta">Zielversion <strong>${targetVersion || 'wird geprüft'}</strong> · vergangen <strong id="elapsed">0 s</strong></p>
     <div class="bar" aria-hidden="true"><span id="bar"></span></div>
   </main>
   <script>
     (function () {
-      var left = ${initialSeconds};
       var targetVersion = ${JSON.stringify(targetVersion)};
-      var seconds = document.getElementById('seconds');
+      var startedAt = ${startedAt};
+      var elapsed = document.getElementById('elapsed');
       var status = document.getElementById('status');
-      var timerLabel = document.getElementById('timer-label');
-      var bar = document.getElementById('bar');
       function render() {
-        seconds.textContent = left > 0 ? Math.max(0, left) : '–';
-        timerLabel.textContent = left > 0 ? ' verbleibende Prüfzeit' : ' warte auf Wiederverbindung';
-        bar.style.transform = 'scaleX(' + (left > 0 ? 1 : 0) + ')';
+        elapsed.textContent = Math.max(0, Math.floor((Date.now() - startedAt) / 1000)) + ' s';
       }
       render();
-      var timer = setInterval(function () {
-        if (left > 0) { left -= 1; render(); }
-      }, 1000);
+      var timer = setInterval(render, 1000);
       async function poll() {
         try {
           var responses = await Promise.all([
@@ -210,14 +212,12 @@ export function maintenancePage() {
             window.location.replace('/');
             return;
           }
-          if (state.active && state.until) left = Math.max(0, Math.ceil((state.until - Date.now()) / 1000));
           status.textContent = ready
             ? 'Der neue Container läuft. Abschluss wird geprüft …'
             : 'Onebox wartet auf den neuen Container. Die Verbindung wird automatisch geprüft.';
           render();
         } catch (error) {
           status.textContent = 'Onebox startet gerade neu. Die Verbindung wird automatisch wiederhergestellt.';
-          left = 0;
           render();
         }
       }
