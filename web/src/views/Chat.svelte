@@ -4,6 +4,7 @@
   import { user, notify } from '../lib/stores.js';
   import Icon from '../components/Icon.svelte';
   import Button from '../components/Button.svelte';
+  import { rememberChatMessage, requestChatNotifications, subscribeChat } from '../lib/chat-realtime.js';
 
   let messages = [];
   let draft = '';
@@ -11,7 +12,14 @@
   let sending = false;
   let failed = '';
 
-  onMount(loadMessages);
+  let notificationPermission = typeof Notification === 'undefined' ? 'unsupported' : Notification.permission;
+  onMount(() => {
+    loadMessages();
+    return subscribeChat((message) => {
+      if (messages.some((entry) => entry.id === message.id)) return;
+      messages = [message, ...messages];
+    });
+  });
 
   async function loadMessages() {
     loading = true;
@@ -32,6 +40,7 @@
     sending = true;
     try {
       const data = await post('/api/v1/chat/messages', { text });
+      rememberChatMessage(data.message);
       messages = [data.message, ...messages];
       draft = '';
     } catch (error) {
@@ -44,6 +53,16 @@
   function isOwn(message) {
     return message.user === $user?.id || message.user === 'me';
   }
+
+  async function enableNotifications() {
+    notificationPermission = await requestChatNotifications();
+    if (notificationPermission === 'granted') notify('Chat-Benachrichtigungen sind aktiviert.', 'success');
+    else if (notificationPermission === 'denied') notify('Benachrichtigungen wurden blockiert. Erlaube sie in den Browsereinstellungen.', 'error');
+  }
+
+  function displayName(message) {
+    return isOwn(message) ? ($user?.displayName || $user?.username || 'Du') : (message.displayName || 'Unbekannt');
+  }
 </script>
 
 <div class="page chat-page">
@@ -52,7 +71,12 @@
       <h1>Chat</h1>
       <p class="lede">Kurze Nachrichten in deiner Onebox.</p>
     </div>
-    <Button variant="quiet" size="sm" icon="refresh-cw" loading={loading} onclick={loadMessages}>Aktualisieren</Button>
+    <div class="chat-actions">
+      {#if notificationPermission !== 'granted' && notificationPermission !== 'unsupported'}
+        <Button variant="quiet" size="sm" icon="bell" onclick={enableNotifications}>Benachrichtigungen</Button>
+      {/if}
+      <Button variant="quiet" size="sm" icon="refresh-cw" loading={loading} onclick={loadMessages}>Aktualisieren</Button>
+    </div>
   </header>
 
   <section class="chat-shell" aria-label="Onebox Chat">
@@ -67,6 +91,7 @@
         {#each [...messages].reverse() as message (message.id)}
           <article class="chat-message" class:chat-message--own={isOwn(message)}>
             <div class="chat-message__body">
+              <span class="chat-message__author">{displayName(message)}</span>
               <p>{message.text}</p>
               <time datetime={new Date(message.createdAt).toISOString()}>{new Date(message.createdAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}</time>
             </div>
@@ -95,6 +120,8 @@
   .chat-message__body { max-width: min(36rem, 80%); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--space-2); background: var(--color-bg-elevated); }
   .chat-message--own .chat-message__body { border-radius: var(--radius-lg) var(--radius-lg) var(--space-2) var(--radius-lg); background: var(--color-bg-active); }
   .chat-message p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .chat-message__author { display: block; margin-bottom: var(--space-1); color: var(--color-text-secondary); font-size: var(--text-xs); font-weight: 600; }
+  .chat-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; }
   .chat-message time { display: block; margin-top: var(--space-2); color: var(--color-text-tertiary); font-size: var(--text-xs); }
   .chat-composer { display: flex; gap: var(--space-3); align-items: end; padding: var(--space-4); border-top: 1px solid var(--color-border-subtle); background: var(--color-bg-base); }
   .chat-composer textarea { min-height: 3rem; resize: vertical; }

@@ -7,6 +7,7 @@
 
   export let open = false;
   export let node = null;
+  export let nodes = [];
   export let onclose = () => {};
   export let onmoved = () => {};
 
@@ -17,6 +18,8 @@
   let error = '';
 
   $: current = stack[stack.length - 1];
+  $: selectedNodes = nodes.length ? nodes : (node ? [node] : []);
+  $: selectedIds = new Set(selectedNodes.map((item) => item.id));
 
   $: if (open) resetPicker();
 
@@ -30,7 +33,7 @@
     error = '';
     try {
       const data = await get(`/api/v1/files?parent=${parentId || 'root'}&kind=folder&limit=200&sort=name`);
-      folders = data.items.filter((item) => item.kind === 'folder' && item.id !== node?.id);
+      folders = data.items.filter((item) => item.kind === 'folder' && !selectedIds.has(item.id));
     } catch (err) {
       error = err.message;
       folders = [];
@@ -50,13 +53,28 @@
   }
 
   async function move() {
+    if (!selectedNodes.length) return;
     busy = true;
     error = '';
     try {
-      await patch(`/api/v1/files/${node.id}`, { parentId: current.id });
-      notify(`„${node.name}“ wurde nach „${current.name}“ verschoben.`, 'success');
-      onmoved();
-      onclose();
+      const failures = [];
+      let moved = 0;
+      for (const item of selectedNodes) {
+        try {
+          await patch(`/api/v1/files/${item.id}`, { parentId: current.id });
+          moved += 1;
+        } catch (err) {
+          failures.push(`${item.name}: ${err.message}`);
+        }
+      }
+      if (moved) onmoved({ moved, failed: failures.length });
+      if (!failures.length) {
+        notify(`${moved} ${moved === 1 ? 'Element' : 'Elemente'} nach „${current.name}“ verschoben.`, 'success');
+        onclose();
+      } else {
+        error = `${moved} verschoben, ${failures.length} fehlgeschlagen. ${failures[0]}`;
+        if (moved) notify(error, 'error');
+      }
     } catch (err) {
       error = err.message;
     } finally {
@@ -65,7 +83,7 @@
   }
 </script>
 
-<Dialog {open} title="Verschieben" description={node ? `„${node.name}“ in einen anderen Ordner verschieben.` : ''} onclose={onclose}>
+<Dialog {open} title="Verschieben" description={selectedNodes.length === 1 ? `„${selectedNodes[0].name}“ in einen anderen Ordner verschieben.` : `${selectedNodes.length} Elemente in einen anderen Ordner verschieben.`} onclose={onclose}>
   <nav class="crumbs" aria-label="Zielordner">
     {#each stack as crumb, index}
       {#if index > 0}<span class="crumb-sep" aria-hidden="true"><Icon name="chevron-right" size={13} /></span>{/if}
@@ -89,6 +107,6 @@
   </div>
   <svelte:fragment slot="footer">
     <Button variant="quiet" onclick={onclose}>Abbrechen</Button>
-    <Button variant="primary" loading={busy} onclick={move} icon="folder-input">Nach „{current.name}“ verschieben</Button>
+    <Button variant="primary" loading={busy} disabled={!selectedNodes.length} onclick={move} icon="folder-input">Nach „{current.name}“ verschieben</Button>
   </svelte:fragment>
 </Dialog>

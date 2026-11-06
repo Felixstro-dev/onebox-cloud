@@ -19,8 +19,10 @@
     <div class="selection-bar__actions">
       <Button variant="quiet" size="sm" icon="x" onclick={$selectionBar.onClear}>Aufheben</Button>
 
-    {#if $selectionBar.single}
-      <Button variant="quiet" size="sm" icon="link" onclick={$selectionBar.onShare}>Teilen</Button>
+    {#if $selectionBar.single || $selectionBar.onMove}
+      {#if $selectionBar.single && $selectionBar.onShare}
+        <Button variant="quiet" size="sm" icon="link" onclick={$selectionBar.onShare}>Teilen</Button>
+      {/if}
       <Button variant="quiet" size="sm" icon="folder-input" onclick={$selectionBar.onMove}>Verschieben</Button>
     {/if}
 

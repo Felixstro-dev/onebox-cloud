@@ -61,7 +61,7 @@ export async function registerSystemRoutes(app) {
     const user = requireUser(req);
     const { text } = req.body;
     if (!text || text.trim() === '') throw badRequest('Nachricht ist leer.');
-    return await addMessage({ text, user: user.id });
+    return await addMessage({ text: text.trim(), user: user.id, displayName: user.displayName || user.username });
   });
 
   // Öffentlich, damit die Wartungsseite und Docker den Status prüfen können.

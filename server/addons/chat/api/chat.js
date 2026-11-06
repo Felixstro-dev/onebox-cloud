@@ -1,3 +1,5 @@
+import { realtime } from '../../../services/realtime.js';
+
 let messages = [];
 
 export async function getMessages() {
@@ -6,9 +8,10 @@ export async function getMessages() {
   return { messages: sorted.slice(0, 50) };
 }
 
-export async function addMessage({ text, user = 'me' }) {
+export async function addMessage({ text, user = 'me', displayName = 'Unbekannt' }) {
   const now = Date.now();
-  const message = { id: Date.now(), text, user, createdAt: now };
+  const message = { id: `${now}-${Math.random().toString(36).slice(2, 8)}`, text, user, displayName, createdAt: now };
   messages.unshift(message);
+  realtime.broadcast({ type: 'chat.message', message });
   return { success: true, id: message.id, message };
 }

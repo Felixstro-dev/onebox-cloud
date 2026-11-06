@@ -127,7 +127,7 @@
     busy: trashBusy,
     onClear: resetSelection,
     onShare: () => (shareNode = singleSelected),
-    onMove: () => (moveNode = singleSelected),
+    onMove: () => (moveNode = { nodes: selectionNodes() }),
     onDownloadZip: downloadZip,
     onCreateZip: openZipCreate,
     onExtract: () => openExtract(zipSingle),
@@ -557,7 +557,7 @@
     if (action === 'preview') openPreview(item);
     if (action === 'share') shareNode = item;
     if (action === 'rename') startRename(item);
-    if (action === 'move') moveNode = item;
+    if (action === 'move') moveNode = { nodes: selectionNodesForItem(item).map((id) => items.find((entry) => entry.id === id)).filter(Boolean) };
     if (action === 'download') window.location.href = `/api/v1/files/${item.id}/download`;
     if (action === 'trash') (selectedCount > 1 ? trashSelection() : trashItem(item));
     if (action === 'copy') copyNode(item);
@@ -604,19 +604,19 @@
     const unique = [...new Set(ids)].filter(Boolean);
     if (!unique.length) return;
     let moved = 0;
+    const failed = [];
     let lastError = null;
     for (const id of unique) {
       try {
         await patch(`/api/v1/files/${id}`, { parentId: parentId ?? null });
         moved += 1;
-      } catch (err) { lastError = err; }
+      } catch (err) { failed.push(id); lastError = err; }
     }
     if (moved) {
-      notify(`${moved} ${moved === 1 ? 'Element' : 'Elemente'} verschoben.`, 'success');
-      resetSelection();
+      notify(`${moved} ${moved === 1 ? 'Element' : 'Elemente'} verschoben${failed.length ? ', einige konnten nicht verschoben werden' : ''}.`, failed.length ? 'error' : 'success');
       refresh();
     }
-    if (lastError && moved < unique.length) {
+    if (lastError && moved === 0) {
       notify(lastError.message || 'Einige Elemente konnten nicht verschoben werden.', 'error');
     }
   }
@@ -1426,7 +1426,13 @@
 </Dialog>
 
 <ShareDialog open={Boolean(shareNode)} node={shareNode} onclose={() => (shareNode = null)} />
-<MoveDialog open={Boolean(moveNode)} node={moveNode} onclose={() => (moveNode = null)} onmoved={onMoved} />
+<MoveDialog
+  open={Boolean(moveNode)}
+  nodes={moveNode?.nodes || []}
+  node={moveNode?.nodes?.[0] || null}
+  onclose={() => (moveNode = null)}
+  onmoved={({ failed }) => { if (!failed) resetSelection(); onMoved(); }}
+/>
 {#if previewNode}
   <FilePreview node={previewNode} onclose={closePreview} />
 {/if}

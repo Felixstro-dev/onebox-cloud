@@ -26,6 +26,7 @@
   import PublicShare from './views/PublicShare.svelte';
   import UploadRequest from './views/UploadRequest.svelte';
   import NotFound from './views/NotFound.svelte';
+  import { startChatRealtime, stopChatRealtime } from './lib/chat-realtime.js';
 
   let boot = 'loading';
   let navOpen = false;
@@ -59,6 +60,7 @@
 
   onMount(() => {
     startRouter();
+    startChatRealtime();
     bootstrap();
     const reportUnexpectedError = (event) => {
       const message = event?.reason?.message || event?.error?.message;
@@ -92,6 +94,7 @@
       window.removeEventListener('error', reportUnexpectedError);
       window.removeEventListener('unhandledrejection', reportUnexpectedError);
       window.removeEventListener('keydown', onKey);
+      stopChatRealtime();
     };
   });
 
